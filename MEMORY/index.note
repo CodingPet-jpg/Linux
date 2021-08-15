@@ -1,0 +1,20 @@
+# introduce
+  statically memory allocation和automatically memory allocation所分配的内存大小可在编译器确定，而dynamically memory allocation
+  静态内存分配无论是否必要都会存在，而自动内存分配则在函数返回时回收，无法跨函数传递，具有相对较短的生命周期，相比静态内存分配（空间浪费）和自动内存分配（生命周期短），动态内存分配具有更强的灵活性
+  可以在C中使用malloc()在heap上分配固定block的内存空间来规避静态分配和自动分配所具有的缺点
+
+
+
+# dynamically memory allocation
+
+
+
+
+# statically memory allocation
+  静态内存分配的全局变量通常保存在临近.text段的.data段，具有与进程相同的生命周期
+
+
+
+
+# automatically memory allocation
+  自动内存分配的局部变量通常保存在stack，与function享有相同的生命周期，即进入函数时分配内存，函数返回时回收内存

@@ -1,0 +1,28 @@
+# 内存分配器（Memory Allocator）
+  ## 种类
+    1.dlmalloc - General purpose allocator
+    2.ptmalloc - glibc
+    3.jemalloc - firefox
+    4.tcmalloc - google
+
+    |ptmalloc====================================================================
+    ||
+     glibc的ptmalloc（pthread malloc）是基于dlmalloc开发，并提供了对多线程的支持
+    
+      Linux 的早期版本使用 dlmalloc 为默认内存分配器，但是因为 ptmalloc 提供了多线程支持
+      所以 Linux 后来采用 ptmalloc 作为默认内存分配器，多线程支持可以提升内存分配器的性能，进而间接提升应用的性能
+     
+                dlmalloc                       ptmalloc
+      +------------------------+      +---------+     +---------+   dlmalloc中多线程共用一个free list，所以多线程同时访问free list时需上表锁，一个时间单位内只允许单现场访问
+      |       free list        |      |free list|     |free list|   
+      +------------------------+      +---------+     +---------+   ptmalloc则每个线程都有独享的free list，不需要担心冲突问题，可同时访问
+      +--------+      +--------+      +---------+     +---------+
+      |        |      |        |      |         |     |         |
+      |        |      |        |      |         |     |         |
+      |   t1   |      |   t2   |      |   t1    |     |   t2    |
+      |        |      |        |      |         |     |         |
+      |        |      |        |      |         |     |         |
+      |        |      |        |      |         |     |         |
+      +--------+      +--------+      +---------+     +---------+
+
+
