@@ -1931,6 +1931,8 @@ typedef struct malloc_chunk *mfastbinptr;
    to lead to trimming. However, it is not dynamically tunable, since
    consolidation reduces fragmentation surrounding large chunks even
    if trimming is not used.
+
+   FASTBIN_CONSOLIDATION_THRESHOLD是一个阈值,大于此阈值的chunk将在free()调用时触发与周围Fastbins中chunk的合并
  */
 
 #define FASTBIN_CONSOLIDATION_THRESHOLD  (65536UL)
