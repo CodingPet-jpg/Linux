@@ -1658,6 +1658,7 @@ tag_new_usable (void *ptr)
     that no consolidated chunk physically borders another one, so each
     chunk in a list is known to be preceeded and followed by either
     inuse chunks or the ends of memory.
+    每一个bin中的空闲空都紧邻着已分配块保持着未合并状态
 
     Chunks in bins are kept in size order, with ties going to the
     approximately least recently used chunk. Ordering isn't needed
@@ -1673,12 +1674,15 @@ tag_new_usable (void *ptr)
     to give each chunk an equal opportunity to be consolidated with
     adjacent freed chunks, resulting in larger free chunks and less
     fragmentation.
+    在相同尺寸的chunk组之后会链接最近释放的空闲chunk,之后有已分配的chunk话则紧随其后打断合并
+    这样每个chunk都有相等的机会和临近的chunk合并,可以有更大的空闲chunk和更少的碎片
 
     To simplify use in double-linked lists, each bin header acts
     as a malloc_chunk. This avoids special-casing for headers.
     But to conserve space and improve locality, we allocate
     only the fd/bk pointers of bins, and then use repositioning tricks
     to treat these as the fields of a malloc_chunk*.
+    
  */
 
 typedef struct malloc_chunk *mbinptr;
@@ -1701,12 +1705,12 @@ typedef struct malloc_chunk *mbinptr;
     Bins for sizes < 512 bytes contain chunks of all the same size, spaced
     8 bytes apart. Larger bins are approximately logarithmically spaced:
 
-    64 bins of size       8
-    32 bins of size      64
-    16 bins of size     512
-     8 bins of size    4096
-     4 bins of size   32768
-     2 bins of size  262144
+    64 bins of size       8 // 512 bytes
+    32 bins of size      64 // 2k bytes
+    16 bins of size     512 // 8k bytes
+     8 bins of size    4096 // 32k bytes
+     4 bins of size   32768 // 128k bytes
+     2 bins of size  262144 // 512k bytes
      1 bin  of size what's left
 
     There is actually a little bit of slop in the numbers in bin_index
@@ -1820,6 +1824,11 @@ unlink_chunk (mstate av, mchunkptr p)
 
     The NON_MAIN_ARENA flag is never set for unsorted chunks, so it
     does not have to be taken into account in size comparisons.
+
+    在chunk分级中所有剩余部分统一放入unsorted bin,所有刚释放的chunk也同样放入unsorted bin
+    在unsorted bin里的chunk被bining(分检)到常规bins前有一次机会被malloc分配
+    所以unsorted bins就像一个队列,当调用free||consolidate时将释放出的freed chunk放入队列
+    在malloc时被挨个取出判断size是否可被当前请求使用,true直接使用,false则执行分检到普通bins
  */
 
 /* The otherwise unindexable 1-bin is used to hold unsorted chunks. */
@@ -1841,6 +1850,9 @@ unlink_chunk (mstate av, mchunkptr p)
     interval between initialization and the first call to
     sysmalloc. (This is somewhat delicate, since it relies on
     the 2 preceding words to be zero during this interval as well.)
+
+    最靠近当前可用内存边界的chunk被成为Top,他不属于任何bin,只有当其他bin中的chunk都被占用时才使用
+    并且此chunk足够巨大时会被返回给OS以释放占用的物理内存,
  */
 
 /* Conveniently, the unsorted bin can be used as dummy top on first call */
@@ -1855,11 +1867,16 @@ unlink_chunk (mstate av, mchunkptr p)
     be skipped over during during traversals.  The bits are NOT always
     cleared as soon as bins are empty, but instead only
     when they are noticed to be empty during traversal in malloc.
+
+    为了弥补过多的bin带来的损耗,我们使用一个一级索引来表示当前bin是否全空(所有chunk都为freed)
+    来做bin by bin的检索,这样在遍历所有bin时跳过一个全空的bin会比挨个遍历chunk节省不少能耗
+    当一个chunk被释放时并不会立即将其中所有位清零,而是当malloc便利所有bin时发现当前bin为空时
+    一次性清零整个bin中所有的chink
  */
 
 /* Conservatively use 32 bits per map word, even if on 64bit system */
 #define BINMAPSHIFT      5
-#define BITSPERMAP       (1U << BINMAPSHIFT)
+#define BITSPERMAP       (1U << BINMAPSHIFT) // Bit: 10 0000
 #define BINMAPSIZE       (NBINS / BITSPERMAP)
 
 #define idx2block(i)     ((i) >> BINMAPSHIFT)
@@ -1880,10 +1897,16 @@ unlink_chunk (mstate av, mchunkptr p)
     ordering doesn't much matter in the transient contexts in which
     fastbins are normally used.
 
+    Fastbins是一个最近释放小chunk的bin,且非双向链表,是一个单项链表
+    单项链表速度更快,因为你永远不会从Fastbins中间移除一个chunk,所以双向链表并不是必要的
+    并且不同与普通的bins,他们不会以FIFO的策略被处理,而是使用后进先出的策略
+    且在这种快进快出的场景排序显得不那么高效
+
     Chunks in fastbins keep their inuse bit set, so they cannot
     be consolidated with other free chunks. malloc_consolidate
     releases all chunks in fastbins and consolidates them with
     other free chunks.
+    在Fastbins中的chunk会被伪释放,即释放后不置位P,所以他们不能和其他空闲chunk合并
  */
 
 typedef struct malloc_chunk *mfastbinptr;
