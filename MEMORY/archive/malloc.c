@@ -600,6 +600,7 @@ tag_at (void *ptr)
   cannot release space back to the system when given negative
   arguments. This is generally necessary only if you are using
   a hand-crafted MORECORE function that cannot handle negative arguments.
+  如果你的sbrk版本接收负数时不能释放空间请在你的系统中设置MORECORE_CANNOT_TRIM
 */
 
 /* #define MORECORE_CANNOT_TRIM */
@@ -1451,7 +1452,8 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /* 通过mem size - 16 bytes定位到chunk address作为参数传给tag_at()函数获得一个tag指针*/
 #define mem2chunk(mem) ((mchunkptr)tag_at (((char*)(mem) - CHUNK_HDR_SZ)))
 
-/* The smallest possible chunk */
+/* The smallest possible chunk 
+   offsetof给定结构体与结构体中某成员,求得该成员在结构体中的偏移*/
 #define MIN_CHUNK_SIZE        (offsetof(struct malloc_chunk, fd_nextsize))
 
 /* The smallest size we can malloc is an aligned minimal chunk */
@@ -1687,7 +1689,9 @@ tag_new_usable (void *ptr)
 
 typedef struct malloc_chunk *mbinptr;
 
-/* addressing -- note that bin_at(0) does not exist */
+/* addressing -- note that bin_at(0) does not exist
+   bin拥有着相同于chunk的视图,通过bins数组中每个成员都具有fd|bk指针的特性,通过2n-1
+   获得fd指针,再通过减去fd指针在malloc结构体中的偏移,即指向当前bin本身,*/
 #define bin_at(m, i) \
   (mbinptr) (((char *) &((m)->bins[((i) - 1) * 2]))			      \
              - offsetof (struct malloc_chunk, fd))
@@ -2121,10 +2125,12 @@ static struct malloc_par mp_ =
 static void
 malloc_init_state (mstate av)
 {
+  /*======================================初始化bin======================================*/
   int i;
-  mbinptr bin;
+  mbinptr bin; // mbinptr即指向malloc_chunk结构的指针
 
-  /* Establish circular links for normal bins */
+  /* Establish circular links for normal bins 
+     初始化bins中所有的bin,使其fd|bk指针均指向当前bin的起始地址*/
   for (i = 1; i < NBINS; ++i)
     {
       bin = bin_at (av, i);
@@ -2136,9 +2142,9 @@ malloc_init_state (mstate av)
 #endif
   set_noncontiguous (av);
   if (av == &main_arena)
-    set_max_fast (DEFAULT_MXFAST);
-  atomic_store_relaxed (&av->have_fastchunks, false);
-
+    set_max_fast (DEFAULT_MXFAST);// (64 * SIZE_SZ / 4)
+  atomic_store_relaxed (&av->have_fastchunks, false);// 原子操作将have_fastchunks置位为false
+  /*======================================初始化Top======================================*/
   av->top = initial_top (av);
 }
 
