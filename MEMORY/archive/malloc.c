@@ -600,6 +600,7 @@ tag_at (void *ptr)
   cannot release space back to the system when given negative
   arguments. This is generally necessary only if you are using
   a hand-crafted MORECORE function that cannot handle negative arguments.
+  如果你的sbrk版本接收负数时不能释放空间请在你的系统中设置MORECORE_CANNOT_TRIM
 */
 
 /* #define MORECORE_CANNOT_TRIM */
@@ -1451,7 +1452,8 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /* 通过mem size - 16 bytes定位到chunk address作为参数传给tag_at()函数获得一个tag指针*/
 #define mem2chunk(mem) ((mchunkptr)tag_at (((char*)(mem) - CHUNK_HDR_SZ)))
 
-/* The smallest possible chunk */
+/* The smallest possible chunk 
+   offsetof给定结构体与结构体中某成员,求得该成员在结构体中的偏移*/
 #define MIN_CHUNK_SIZE        (offsetof(struct malloc_chunk, fd_nextsize))
 
 /* The smallest size we can malloc is an aligned minimal chunk */
@@ -1685,7 +1687,9 @@ tag_new_usable (void *ptr)
 
 typedef struct malloc_chunk *mbinptr;
 
-/* addressing -- note that bin_at(0) does not exist */
+/* addressing -- note that bin_at(0) does not exist
+   bin拥有着相同于chunk的视图,通过bins数组中每个成员都具有fd|bk指针的特性,通过2n-1
+   获得fd指针,再通过减去fd指针在malloc结构体中的偏移,即指向当前bin本身,*/
 #define bin_at(m, i) \
   (mbinptr) (((char *) &((m)->bins[((i) - 1) * 2]))			      \
              - offsetof (struct malloc_chunk, fd))
@@ -1872,21 +1876,32 @@ unlink_chunk (mstate av, mchunkptr p)
 
     为了弥补过多的bin带来的损耗,我们使用一个一级索引来表示当前bin是否全空(所有chunk都为freed)
     来做bin by bin的检索,这样在遍历所有bin时跳过一个全空的bin会比挨个遍历chunk节省不少能耗
-    当一个chunk被释放时并不会立即将其中所有位清零,而是当malloc便利所有bin时发现当前bin为空时
-    一次性清零整个bin中所有的chink
+    bin并不是一旦全空就将bitmap对应味置0,而是在下次便利时如果全空则置0
  */
 
 /* Conservatively use 32 bits per map word, even if on 64bit system */
 #define BINMAPSHIFT      5
-#define BITSPERMAP       (1U << BINMAPSHIFT) // Bit: 10 0000
-#define BINMAPSIZE       (NBINS / BITSPERMAP)
+#define BITSPERMAP       (1U << BINMAPSHIFT) // Bit: 10 0000 每个Map共32个bit
+#define BINMAPSIZE       (NBINS / BITSPERMAP) // 128/32 = 4  即表示128个bin需要4个binmap,分别为binmap[0] binmap[1] binmap[2] binmap[3],每个binmap包含32个bin
+
+/*
+binmap[0] 00 0000 ~  01 1111  0-31
+binmap[1] 10 0000 ~  11 1111  32-63
+binmap[2] 20 0000 ~ 101 1111  64-95
+binmap[3] 30 0000 ~ 111 1111  96-127
+*/
+
+/* i即传入的NBINS,取值范围在0～127,通过向右移5位可获得其在binmap中的index,具体实现见idx2block(i)
+   将10 0000 - 1可得到 1 1111 & i 即掩码i仅保留i的后5位,取值范围为0-1 1111即1-31表示当前b在binmap中的偏移
+   再将1向左偏移此数,如101 0011 & 001 1111得到1 0011即19为i在binmap中的偏移值,最终得到0000 0000 0000 1000 0000 0000 0000 0000*/
 
 #define idx2block(i)     ((i) >> BINMAPSHIFT)
 #define idx2bit(i)       ((1U << ((i) & ((1U << BINMAPSHIFT) - 1))))
 
-#define mark_bin(m, i)    ((m)->binmap[idx2block (i)] |= idx2bit (i))
-#define unmark_bin(m, i)  ((m)->binmap[idx2block (i)] &= ~(idx2bit (i)))
-#define get_binmap(m, i)  ((m)->binmap[idx2block (i)] & idx2bit (i))
+/* m为mstat结构体*/
+#define mark_bin(m, i)    ((m)->binmap[idx2block (i)] |= idx2bit (i))// 将binmap中当前位置置1
+#define unmark_bin(m, i)  ((m)->binmap[idx2block (i)] &= ~(idx2bit (i)))// 将binmap中当前位置置0
+#define get_binmap(m, i)  ((m)->binmap[idx2block (i)] & idx2bit (i))// 获得当前index的bin状态
 
 /*
    Fastbins
@@ -2123,10 +2138,12 @@ static struct malloc_par mp_ =
 static void
 malloc_init_state (mstate av)
 {
+  /*======================================初始化bin======================================*/
   int i;
-  mbinptr bin;
+  mbinptr bin; // mbinptr即指向malloc_chunk结构的指针
 
-  /* Establish circular links for normal bins */
+  /* Establish circular links for normal bins 
+     初始化bins中所有的bin,使其fd|bk指针均指向当前bin的起始地址*/
   for (i = 1; i < NBINS; ++i)
     {
       bin = bin_at (av, i);
@@ -2138,9 +2155,9 @@ malloc_init_state (mstate av)
 #endif
   set_noncontiguous (av);
   if (av == &main_arena)
-    set_max_fast (DEFAULT_MXFAST);
-  atomic_store_relaxed (&av->have_fastchunks, false);
-
+    set_max_fast (DEFAULT_MXFAST);// (64 * SIZE_SZ / 4)
+  atomic_store_relaxed (&av->have_fastchunks, false);// 原子操作将have_fastchunks置位为false
+  /*======================================初始化Top======================================*/
   av->top = initial_top (av);
 }
 
