@@ -2015,7 +2015,7 @@ get_max_fast (void)
  */
 
 
-struct malloc_state
+struct malloc_state // arena的描述信息
 {
   /* Serialize access.  */
   __libc_lock_define (, mutex);
