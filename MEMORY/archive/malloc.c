@@ -1658,7 +1658,8 @@ tag_new_usable (void *ptr)
     that no consolidated chunk physically borders another one, so each
     chunk in a list is known to be preceeded and followed by either
     inuse chunks or the ends of memory.
-    每一个bin中的空闲空都紧邻着已分配块保持着未合并状态
+    大多数bin指定的size并不常见于我们经常分配的尺寸,而是常见于内存中的碎片以及合并前
+    
 
     Chunks in bins are kept in size order, with ties going to the
     approximately least recently used chunk. Ordering isn't needed
@@ -1674,15 +1675,12 @@ tag_new_usable (void *ptr)
     to give each chunk an equal opportunity to be consolidated with
     adjacent freed chunks, resulting in larger free chunks and less
     fragmentation.
-    在相同尺寸的chunk组之后会链接最近释放的空闲chunk,之后有已分配的chunk话则紧随其后打断合并
-    这样每个chunk都有相等的机会和临近的chunk合并,可以有更大的空闲chunk和更少的碎片
 
     To simplify use in double-linked lists, each bin header acts
     as a malloc_chunk. This avoids special-casing for headers.
     But to conserve space and improve locality, we allocate
     only the fd/bk pointers of bins, and then use repositioning tricks
     to treat these as the fields of a malloc_chunk*.
-    
  */
 
 typedef struct malloc_chunk *mbinptr;
@@ -1705,16 +1703,20 @@ typedef struct malloc_chunk *mbinptr;
     Bins for sizes < 512 bytes contain chunks of all the same size, spaced
     8 bytes apart. Larger bins are approximately logarithmically spaced:
 
-    64 bins of size       8 // 512 bytes
-    32 bins of size      64 // 2k bytes
-    16 bins of size     512 // 8k bytes
-     8 bins of size    4096 // 32k bytes
-     4 bins of size   32768 // 128k bytes
-     2 bins of size  262144 // 512k bytes
+    64 bins of size       8
+    32 bins of size      64
+    16 bins of size     512
+     8 bins of size    4096
+     4 bins of size   32768
+     2 bins of size  262144
      1 bin  of size what's left
 
     There is actually a little bit of slop in the numbers in bin_index
     for the sake of speed. This makes no difference elsewhere.
+
+    The bins top out around 1MB because we expect to service large
+    requests via mmap.
+
 
     The bins top out around 1MB because we expect to service large
     requests via mmap.
@@ -5929,31 +5931,6 @@ __malloc_info (int options, FILE *fp)
 	  total_aspace += ar_ptr->system_mem;
 	  total_aspace_mprotect += ar_ptr->system_mem;
 	}
-
-      fputs ("</heap>\n", fp);
-      ar_ptr = ar_ptr->next;
-    }
-  while (ar_ptr != &main_arena);
-
-  fprintf (fp,
-	   "<total type=\"fast\" count=\"%zu\" size=\"%zu\"/>\n"
-	   "<total type=\"rest\" count=\"%zu\" size=\"%zu\"/>\n"
-	   "<total type=\"mmap\" count=\"%d\" size=\"%zu\"/>\n"
-	   "<system type=\"current\" size=\"%zu\"/>\n"
-	   "<system type=\"max\" size=\"%zu\"/>\n"
-	   "<aspace type=\"total\" size=\"%zu\"/>\n"
-	   "<aspace type=\"mprotect\" size=\"%zu\"/>\n"
-	   "</malloc>\n",
-	   total_nfastblocks, total_fastavail, total_nblocks, total_avail,
-	   mp_.n_mmaps, mp_.mmapped_mem,
-	   total_system, total_max_system,
-	   total_aspace, total_aspace_mprotect);
-
-  return 0;
-}
-#if IS_IN (libc)
-weak_alias (__malloc_info, malloc_info)
-
 strong_alias (__libc_calloc, __calloc) weak_alias (__libc_calloc, calloc)
 strong_alias (__libc_free, __free) strong_alias (__libc_free, free)
 strong_alias (__libc_malloc, __malloc) strong_alias (__libc_malloc, malloc)
