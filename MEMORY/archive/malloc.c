@@ -1297,6 +1297,7 @@ struct malloc_chunk {
     size fields also hold bits representing whether chunks are free or
     in use.
     free chunk使用了boundary tag技术,在free chunk的前后都被当前chunk的size包围
+    如果上一个chunk为已分配chunk,则prev chunk size 存储上一个chunk的data,如果上一个chunk未分配,则存储上一个chunk的size
     +------+-------+------+
     | size | chunk | size | 这样设计的好处是当有两个相邻的free chunk时,后一个chunk只要摸一下
     +------+-------+------+ 前一个chunk的屁股就能知道他是否free,有多少size,做到快速合并且知晓合并后的总size
@@ -2031,7 +2032,9 @@ struct malloc_state // arena的描述信息
   /* Base of the topmost chunk -- not otherwise kept in a bin */
   mchunkptr top;
 
-  /* The remainder from the most recent split of a small request */
+  /* The remainder from the most recent split of a small request
+     当big chunk被切分时,一块返回用户,一块放入unsorted chunk,且被标记为last_remainder
+     用户连续请求时,如果last_remainder chunk是unsorted chunk中唯一的chunk,则将该chunk一分为二使用*/
   mchunkptr last_remainder;
 
   /* Normal bins packed as described above */
@@ -2229,6 +2232,11 @@ free_perturb (char *p, size_t n)
 
 /*
    Properties of all chunks
+   thread arena 由mmap分配heap,当heap useed up,mmap会分配一个新的heap,所以thread arena中的内存空间是不连续的
+   每个heap都有自己的heap header,而所有heap属于的thread arena仅有一个arena header
+   main arena没有多个heap,所以没有heap_info成员,不同于thread arena used up内存空间使用mmap再分配,mainarena使用sbrk来扩展内存空间
+   main arena的arena_header不存储在堆中,而是作为全局变量存储在data segment中
+   main arena属于heap中一部分,并不管理heap所有没有heap_info信息,而thread arena管理heap,所以有heap_info管理字段
  */
 
 static void
@@ -2711,7 +2719,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 
   if (av != &main_arena)
     {
-      heap_info *old_heap, *heap;
+      heap_info *old_heap, *heap; 
       size_t old_heap_size;
 
       /* First try to extend the current heap. */
