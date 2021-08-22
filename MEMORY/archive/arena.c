@@ -48,11 +48,12 @@
 
 /* A heap is a single contiguous memory region holding (coalesceable)
    malloc_chunks.  It is allocated with mmap() and always starts at an
-   address aligned to HEAP_MAX_SIZE.  */
+   address aligned to HEAP_MAX_SIZE. 
+   Heap是一个容纳chunks且单向增长的连续内存区间,由mmap()分配且始终对齐HEAP_MAX_SIZE,本例中为1GB*/
 
 typedef struct _heap_info
 {
-  mstate ar_ptr; /* Arena for this heap. */
+  mstate ar_ptr; /* Arena for this heap. 一个Arena可以有多个Heap,一个Heap只能对应一个Arena*/
   struct _heap_info *prev; /* Previous heap. */
   size_t size;   /* Current size in bytes. */
   size_t mprotect_size; /* Size in bytes that has been mprotected

@@ -378,7 +378,7 @@ __malloc_assert (const char *assertion, const char *file, unsigned int line,
 
 /* With rounding and alignment, the bins are...
    idx 0   bytes 0..24 (64-bit) or 0..12 (32-bit)
-   idx 1   bytes 25..40 or 13..20
+     idx 1   bytes 25..40 or 13..20
    idx 2   bytes 41..56 or 21..28
    etc.  */
 
@@ -1297,12 +1297,14 @@ struct malloc_chunk {
     size fields also hold bits representing whether chunks are free or
     in use.
     free chunk使用了boundary tag技术,在free chunk的前后都被当前chunk的size包围
-    +------+-------+------+是`
+    +------+-------+------+
     | size | chunk | size | 这样设计的好处是当有两个相邻的free chunk时,后一个chunk只要摸一下
     +------+-------+------+ 前一个chunk的屁股就能知道他是否free,有多少size,做到快速合并且知晓合并后的总size
 
     An allocated chunk looks like this:
 
+    Size of previous chunk 仅能在当前chunk size中P=0时访问
+    当前chunk如果是已分配状态,则所有属性中只有size works
 
     chunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 	    |             Size of previous chunk, if unallocated (P clear)  |
@@ -1721,19 +1723,15 @@ typedef struct malloc_chunk *mbinptr;
     The bins top out around 1MB because we expect to service large
     requests via mmap.
 
-
-    The bins top out around 1MB because we expect to service large
-    requests via mmap.
-
     Bin 0 does not exist.  Bin 1 is the unordered list; if that would be
     a valid chunk size the small bins are bumped up one.
  */
 
 #define NBINS             128
 #define NSMALLBINS         64
-#define SMALLBIN_WIDTH    MALLOC_ALIGNMENT
-#define SMALLBIN_CORRECTION (MALLOC_ALIGNMENT > CHUNK_HDR_SZ)
-#define MIN_LARGE_SIZE    ((NSMALLBINS - SMALLBIN_CORRECTION) * SMALLBIN_WIDTH)
+#define SMALLBIN_WIDTH    MALLOC_ALIGNMENT// 16
+#define SMALLBIN_CORRECTION (MALLOC_ALIGNMENT > CHUNK_HDR_SZ)// 16>16=0
+#define MIN_LARGE_SIZE    ((NSMALLBINS - SMALLBIN_CORRECTION) * SMALLBIN_WIDTH)// small bin中可以存储的最大值 (64-0) * 16 = 1024,即用户请求size超过1024 bytes默认使用large bin分配
 
 #define in_smallbin_range(sz)  \
   ((unsigned long) (sz) < (unsigned long) MIN_LARGE_SIZE)
@@ -3424,7 +3422,7 @@ __libc_malloc (size_t bytes)
 libc_hidden_def (__libc_malloc)
 
 void
-__libc_free (void *mem)
+__libc_free (void *mem)// 当用户提供一个需要free的chunk时,如果chunk size within fast bin,则将其放入,否则放入unsorted bin,unsorted bin中的chunk可能会在之后被分检到normal binsu或者直接分配给用户使用
 {
   mstate ar_ptr;
   mchunkptr p;                          /* chunk corresponding to mem */
