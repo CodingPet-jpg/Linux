@@ -1867,6 +1867,7 @@ unlink_chunk (mstate av, mchunkptr p)
 
     最靠近当前可用内存边界的chunk被成为Top,他不属于任何bin,只有当其他bin中的chunk都被占用时才使用
     并且此chunk足够巨大时会被返回给OS以释放占用的物理内存,
+    Top是一个特殊的chunk,自身就是一个bin
  */
 
 /* Conveniently, the unsorted bin can be used as dummy top on first call */
@@ -1885,7 +1886,9 @@ unlink_chunk (mstate av, mchunkptr p)
     为了弥补过多的bin带来的损耗,我们使用一个一级索引来表示当前bin是否全空(所有chunk都为freed)
     来做bin by bin的检索,这样在遍历所有bin时跳过一个全空的bin会比挨个遍历chunk节省不少能耗
     bin并不是一旦全空就将bitmap对应味置0,而是在下次便利时如果全空则置0
+    bin通常都是跨页的,这样Cpu在处理bin时就会频繁的触发page fault,导致性能下降,binmap可以避免无谓的traverse
  */
+
 
 /* Conservatively use 32 bits per map word, even if on 64bit system */
 #define BINMAPSHIFT      5
@@ -1893,17 +1896,17 @@ unlink_chunk (mstate av, mchunkptr p)
 #define BINMAPSIZE       (NBINS / BITSPERMAP) // 128/32 = 4  即表示128个bin需要4个binmap,分别为binmap[0] binmap[1] binmap[2] binmap[3],每个binmap包含32个bin
 
 /*
-binmap[0] 00 0000 ~  01 1111  0-31
-binmap[1] 10 0000 ~  11 1111  32-63
-binmap[2] 20 0000 ~ 101 1111  64-95
-binmap[3] 30 0000 ~ 111 1111  96-127
+binmap[0]   0  00000  ~  0  11111  0-31
+binmap[1]   1  00000  ~  1  11111  32-63
+binmap[2]  10  000000 ~ 10  11111  64-95
+binmap[3]  11  000000 ~ 11  11111  96-127
 */
 
 /* i即传入的NBINS,取值范围在0～127,通过向右移5位可获得其在binmap中的index,具体实现见idx2block(i)
    将10 0000 - 1可得到 1 1111 & i 即掩码i仅保留i的后5位,取值范围为0-1 1111即1-31表示当前b在binmap中的偏移
    再将1向左偏移此数,如101 0011 & 001 1111得到1 0011即19为i在binmap中的偏移值,最终得到0000 0000 0000 1000 0000 0000 0000 0000*/
 
-#define idx2block(i)     ((i) >> BINMAPSHIFT)
+#define idx2block(i)     ((i) >> BINMAPSHIFT)// 将bin在bins中的下标转换为binmap中的下标
 #define idx2bit(i)       ((1U << ((i) & ((1U << BINMAPSHIFT) - 1))))
 
 /* m为mstat结构体*/
