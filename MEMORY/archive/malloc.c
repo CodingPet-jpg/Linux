@@ -1553,16 +1553,16 @@ checked_request2size (size_t req, size_t *sz) __nonnull (1)
    cause helpful core dumps to occur if it is tried by accident by
    people extending or adapting this malloc.
  */
-#define SIZE_BITS (PREV_INUSE | IS_MMAPPED | NON_MAIN_ARENA)
+#define SIZE_BITS (PREV_INUSE | IS_MMAPPED | NON_MAIN_ARENA)// 111
 
 /* Get size, ignoring use bits */
-#define chunksize(p) (chunksize_nomask (p) & ~(SIZE_BITS))
+#define chunksize(p) (chunksize_nomask (p) & ~(SIZE_BITS))// 将size后三位清零
 
 /* Like chunksize, but do not mask SIZE_BITS.  */
 #define chunksize_nomask(p)         ((p)->mchunk_size)
 
 /* Ptr to next physical malloc_chunk. */
-#define next_chunk(p) ((mchunkptr) (((char *) (p)) + chunksize (p)))
+#define next_chunk(p) ((mchunkptr) (((char *) (p)) + chunksize (p)))// p为当前chunk_stat结构体指针,plus current chunk size则为指向下一个chunk的指针
 
 /* Size of the chunk below P.  Only valid if !prev_inuse (P).  */
 #define prev_size(p) ((p)->mchunk_prev_size)
@@ -1786,23 +1786,32 @@ unlink_chunk (mstate av, mchunkptr p)
   mchunkptr fd = p->fd;
   mchunkptr bk = p->bk;
 
+  // 进行两项chunk检查防止对chunk的攻击
   if (__builtin_expect (fd->bk != p || bk->fd != p, 0))
     malloc_printerr ("corrupted double-linked list");
-
+  // 当前chunk的后一个chunk的前指针指向当前chunk的前一个chunk
+  // 当前chunk的前一个chunk的后指针指向当前chunk的后一个chunk
+  // 即unlink
   fd->bk = bk;
   bk->fd = fd;
-  if (!in_smallbin_range (chunksize_nomask (p)) && p->fd_nextsize != NULL)
+  if (!in_smallbin_range (chunksize_nomask (p)) && p->fd_nextsize != NULL)// 如果释放的chunk在bin中有相同大小的chunk来保存nextsize信息,则当前chunk释放时不需要进行任何操作
+                                                                          // p->fd_nextsize != NULL有两种情况,一是存在比当前p大的chunk,二是chunk指向自身
     {
       if (p->fd_nextsize->bk_nextsize != p
 	  || p->bk_nextsize->fd_nextsize != p)
 	malloc_printerr ("corrupted double-linked list (not small)");
+      // 如果释放的chunk有相同大小的chunk且不存储任何nextsize,则在将被释放chunk前后chunk的nextsize指针转移外还需要将当前被释放chunk所持有的指针继承给相同size未存储nextsize信息的chunk
 
-      if (fd->fd_nextsize == NULL)
+      if (fd->fd_nextsize == NULL)// 表示p和fd为相同大小的chunk,因为相同大小的chunk仅有其一持有所有nextsize信息,所以fd->nextsize = NULL则说明p和fd大小相同
+                                  // 且p持有全部nextsize信息,将p unlink时需要将p所有nextsize信息继承给fd,即
+                                  // fd->fd_nextsize = p->fd_nextsize    fd->bk_nextsize = p->bk_nextsize
+                                  // 且原p前后的chunk指向的p需要替换为fd,即
+                                  // p->fd_nextsize->bk_nextsize = fd    p->bk_nextsize->fd_nextsize = fd
 	{
-	  if (p->fd_nextsize == p)
+	  if (p->fd_nextsize == p)// 在将p的指针继承给fd前有一种特殊情况就是p本身是最大chunk,所以指针指向自己,这种情况不需要继承指针,只需要简单的将fd的指针也指向自己即可
 	    fd->fd_nextsize = fd->bk_nextsize = fd;
 	  else
-	    {
+	    {// 实现前后chunk指针重定位与被释放chunk指针的继承
 	      fd->fd_nextsize = p->fd_nextsize;
 	      fd->bk_nextsize = p->bk_nextsize;
 	      p->fd_nextsize->bk_nextsize = fd;
