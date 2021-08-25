@@ -127,6 +127,7 @@ int __malloc_initialized = -1;
 
 #define heap_for_ptr(ptr) \
   ((heap_info *) ((unsigned long) (ptr) & ~(HEAP_MAX_SIZE - 1)))
+// 通过heap的指针范围定位到所属heap
 #define arena_for_chunk(ptr) \
   (chunk_main_arena (ptr) ? &main_arena : heap_for_ptr (ptr)->ar_ptr)
 

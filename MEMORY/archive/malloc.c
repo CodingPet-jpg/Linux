@@ -1474,7 +1474,8 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 /* pad request bytes into a usable size -- internal version */
 /* Note: This must be a macro that evaluates to a compile time constant
-   if passed a literal constant.  */
+   if passed a literal constant.
+   round up the size使其16字节对齐*/
 #define request2size(req)                                         \
   (((req) + SIZE_SZ + MALLOC_ALIGN_MASK < MINSIZE)  ?             \
    MINSIZE :                                                      \
@@ -1946,9 +1947,9 @@ typedef struct malloc_chunk *mfastbinptr;
 
 
 /* The maximum fastbin request size we support */
-#define MAX_FAST_SIZE     (80 * SIZE_SZ / 4)
+#define MAX_FAST_SIZE     (80 * SIZE_SZ / 4)// fast bin最大size为160
 
-#define NFASTBINS  (fastbin_index (request2size (MAX_FAST_SIZE)) + 1)
+#define NFASTBINS  (fastbin_index (request2size (MAX_FAST_SIZE)) + 1)// 9
 
 /*
    FASTBIN_CONSOLIDATION_THRESHOLD is the size of a chunk in free()
@@ -2146,6 +2147,9 @@ static struct malloc_par mp_ =
 
    This is called from ptmalloc_init () or from _int_new_arena ()
    when creating a new arena.
+   初始化所有的normal bin,使其指针指向自身
+   初始化flag,区分主从arena,主arena内存连续,从arena由mmap分配,内存不连续
+   初始化Top
  */
 
 static void
@@ -2254,18 +2258,18 @@ free_perturb (char *p, size_t n)
 static void
 do_check_chunk (mstate av, mchunkptr p)
 {
-  unsigned long sz = chunksize (p);
+  unsigned long sz = chunksize (p);// 获取malloc_chunk的size字段,后四位清零
   /* min and max possible addresses assuming contiguous allocation */
-  char *max_address = (char *) (av->top) + chunksize (av->top);
-  char *min_address = max_address - av->system_mem;
+  char *max_address = (char *) (av->top) + chunksize (av->top);// Top尾部为当前最大地址
+  char *min_address = max_address - av->system_mem;// 最大地址减去系统分配地址为当前起始地址
 
-  if (!chunk_is_mmapped (p))
+  if (!chunk_is_mmapped (p))// 通过size低三位判断当前chunk是否由mmap分配
     {
       /* Has legal address ... */
       if (p != av->top)
         {
           if (contiguous (av))
-            {
+            {// 非Top chunk时大于当前最小地址,且chuunk结尾小于Top chunk的起始
               assert (((char *) p) >= min_address);
               assert (((char *) p + sz) <= ((char *) (av->top)));
             }
@@ -2275,7 +2279,7 @@ do_check_chunk (mstate av, mchunkptr p)
           /* top size is always at least MINSIZE */
           assert ((unsigned long) (sz) >= MINSIZE);
           /* top predecessor always marked inuse */
-          assert (prev_inuse (p));
+          assert (prev_inuse (p));// Top chunk为可合并的最大chunk,所以前一个chunk为inuse状态
         }
     }
   else
@@ -2285,7 +2289,8 @@ do_check_chunk (mstate av, mchunkptr p)
         {
           assert (((char *) p) < min_address || ((char *) p) >= max_address);
         }
-      /* chunk is page-aligned */
+      /* chunk is page-aligned 
+         mmap分配的chunk必须是按页对齐*/
       assert (((prev_size (p) + sz) & (GLRO (dl_pagesize) - 1)) == 0);
       /* mem is aligned */
       assert (aligned_OK (chunk2mem (p)));
@@ -2300,24 +2305,24 @@ static void
 do_check_free_chunk (mstate av, mchunkptr p)
 {
   INTERNAL_SIZE_T sz = chunksize_nomask (p) & ~(PREV_INUSE | NON_MAIN_ARENA);
-  mchunkptr next = chunk_at_offset (p, sz);
+  mchunkptr next = chunk_at_offset (p, sz);// chunk起始地址+size获得下一个chunk的起始地址
 
   do_check_chunk (av, p);
 
   /* Chunk must claim to be free ... */
-  assert (!inuse (p));
+  assert (!inuse (p));// 通过size偏移获取下一个chunk,通过其成员变量size的p成员即可知当前chunk状态,free则p=0
   assert (!chunk_is_mmapped (p));
 
   /* Unless a special marker, must have OK fields */
   if ((unsigned long) (sz) >= MINSIZE)
     {
-      assert ((sz & MALLOC_ALIGN_MASK) == 0);
+      assert ((sz & MALLOC_ALIGN_MASK) == 0);// M为0
       assert (aligned_OK (chunk2mem (p)));
       /* ... matching footer field */
       assert (prev_size (next_chunk (p)) == sz);
       /* ... and is fully consolidated */
-      assert (prev_inuse (p));
-      assert (next == av->top || inuse (next));
+      assert (prev_inuse (p));// 前一个chunk为已分配
+      assert (next == av->top || inuse (next));// 后一个chunk为已分配或者后一个chunk为top chunk
 
       /* ... and has minimally sane links */
       assert (p->fd->bk == p);
@@ -2350,7 +2355,7 @@ do_check_inuse_chunk (mstate av, mchunkptr p)
      Since more things can be checked with free chunks than inuse ones,
      if an inuse chunk borders them and debug is on, it's worth doing them.
    */
-  if (!prev_inuse (p))
+  if (!prev_inuse (p))// 仅当前一个chunk为未分配时才可以访问
     {
       /* Note that we cannot even look at prev unless it is not inuse */
       mchunkptr prv = prev_chunk (p);
@@ -2359,11 +2364,11 @@ do_check_inuse_chunk (mstate av, mchunkptr p)
     }
 
   if (next == av->top)
-    {
+    {// Top chunk前必须为已分配chunk,且Top chunk不能小于最小chunk
       assert (prev_inuse (next));
       assert (chunksize (next) >= MINSIZE);
     }
-  else if (!inuse (next))
+  else if (!inuse (next))// 如果后一个chunk为free chunk则对他进行检查
     do_check_free_chunk (av, next);
 }
 
@@ -2377,8 +2382,8 @@ do_check_remalloced_chunk (mstate av, mchunkptr p, INTERNAL_SIZE_T s)
   INTERNAL_SIZE_T sz = chunksize_nomask (p) & ~(PREV_INUSE | NON_MAIN_ARENA);
 
   if (!chunk_is_mmapped (p))
-    {
-      assert (av == arena_for_chunk (p));
+    {// 检查chunk和arena的一致性
+      assert (av == arena_for_chunk (p));//宏定义在arena.c,如果p为main arena,则直接获取main arena指针,否则通过p找到所在heap,之后通过heap找到对应的arena
       if (chunk_main_arena (p))
         assert (av == &main_arena);
       else
@@ -2388,13 +2393,13 @@ do_check_remalloced_chunk (mstate av, mchunkptr p, INTERNAL_SIZE_T s)
   do_check_inuse_chunk (av, p);
 
   /* Legal size ... */
-  assert ((sz & MALLOC_ALIGN_MASK) == 0);
+  assert ((sz & MALLOC_ALIGN_MASK) == 0);// size后四位=0
   assert ((unsigned long) (sz) >= MINSIZE);
   /* ... and alignment */
   assert (aligned_OK (chunk2mem (p)));
   /* chunk is less than MINSIZE more than request */
   assert ((long) (sz) - (long) (s) >= 0);
-  assert ((long) (sz) - (long) (s + MINSIZE) < 0);
+  assert ((long) (sz) - (long) (s + MINSIZE) < 0);// 分配的空间不能超出用户请求的空间一个32 bytes单位
 }
 
 /*
@@ -2454,13 +2459,15 @@ do_check_malloc_state (mstate av)
   assert (av->top != 0);
 
   /* No memory has been allocated yet, so doing more tests is not possible.  */
-  if (av->top == initial_top (av))
+  if (av->top == initial_top (av))// 当top刚初始化时使用的是unsorted bin的指针,即unsorted bin伪装成了top
     return;
 
+  // 当top和unsorted bin不共用指针时
   /* pagesize is a power of 2 */
   assert (powerof2(GLRO (dl_pagesize)));
 
-  /* A contiguous main_arena is consistent with sbrk_base.  */
+  /* A contiguous main_arena is consistent with sbrk_base.  
+     sbrk.base + 从系统获得的内存*与top起始地址 + top size有相同的结尾*/
   if (av == &main_arena && contiguous (av))
     assert ((char *) mp_.sbrk_base + av->system_mem ==
             (char *) av->top + chunksize (av->top));
