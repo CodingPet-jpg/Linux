@@ -2638,7 +2638,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
      allocated mmapped regions, try to directly map this request
      rather than expanding top.
    */
-
+  // mmap分配
   if (av == NULL
       || ((unsigned long) (nb) >= (unsigned long) (mp_.mmap_threshold)
 	  && (mp_.n_mmaps < mp_.n_mmaps_max)))
