@@ -2557,7 +2557,8 @@ do_check_malloc_state (mstate av)
                       if (p->fd_nextsize == p)// 如果当前chunk为bin中最大chunk,则bk/fd_nextsize均指向自身
                         assert (p->bk_nextsize == p);
                       else
-                        {
+                        {// large bin中chunk按从大到小排序,fd_nextsize指向较小于自己的chunk,最小的chunk则指向最大的chunk
+                         // bk_nextsize指向较大于自己的chunk,最大的chunk则指向最小的chunk
                           if (p->fd_nextsize == first (b))
                             assert (chunksize (p) < chunksize (p->fd_nextsize));
                           else
@@ -2569,12 +2570,12 @@ do_check_malloc_state (mstate av)
                             assert (chunksize (p) < chunksize (p->bk_nextsize));
                         }
                     }
-                  else
+                  else// 如果p->fd_nextsize = NULL,说明当前chunk在同组chunk中且不为第一个,那么p->bk_nextsize也将等于NULL
                     assert (p->bk_nextsize == NULL);
                 }
             }
-          else if (!in_smallbin_range (size))
-            assert (p->fd_nextsize == NULL && p->bk_nextsize == NULL);
+          else if (!in_smallbin_range (size))// unsorted bin中的large chunk
+            assert (p->fd_nextsize == NULL && p->bk_nextsize == NULL);// 未排序chunk不含此指针
           /* chunk is followed by a legal chain of inuse chunks */
           for (q = next_chunk (p);
                (q != av->top && inuse (q) &&
