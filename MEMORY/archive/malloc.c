@@ -1949,7 +1949,7 @@ typedef struct malloc_chunk *mfastbinptr;
 /* The maximum fastbin request size we support */
 #define MAX_FAST_SIZE     (80 * SIZE_SZ / 4)// fast bin最大size为160
 
-#define NFASTBINS  (fastbin_index (request2size (MAX_FAST_SIZE)) + 1)// 9
+#define NFASTBINS  (fastbin_index (request2size (MAX_FAST_SIZE)) + 1)// 10
 
 /*
    FASTBIN_CONSOLIDATION_THRESHOLD is the size of a chunk in free()
@@ -2479,9 +2479,9 @@ do_check_malloc_state (mstate av)
 
   max_fast_bin = fastbin_index (get_max_fast ());
 
-  for (i = 0; i < NFASTBINS; ++i)
+  for (i = 0; i < NFASTBINS; ++i)// 0~9
     {
-      p = fastbin (av, i);
+      p = fastbin (av, i);// 获取fastbin中第一个chunk的指针
 
       /* The following test can only be performed for the main arena.
          While mallopt calls malloc_consolidate to get rid of all fast
@@ -2494,26 +2494,33 @@ do_check_malloc_state (mstate av)
          concurrent malloc call might create a new arena which then
          could use the newly invalid fast bins.  */
 
-      /* all bins past max_fast are empty */
+      /* all bins past max_fast are empty 
+         MAX_FAST_SIZE = 160
+         NFASTBINS = 10
+         max_fast_bins通过set_max_fast设置,为小于MAX_FAST_SIZE的值
+         max_fast_bin  < p < MAX_FAST_SIZE的需要映射指针到0
+         */
       if (av == &main_arena && i > max_fast_bin)
         assert (p == 0);
 
-      while (p != 0)
+      while (p != 0)// p为合法值时
         {
 	  if (__glibc_unlikely (misaligned_chunk (p)))
 	    malloc_printerr ("do_check_malloc_state(): "
 			     "unaligned fastbin chunk detected");
-          /* each chunk claims to be inuse */
+          /* each chunk claims to be inuse 
+             fast bin因为不能被合并所以进行inuse check*/
           do_check_inuse_chunk (av, p);
           total += chunksize (p);
-          /* chunk belongs in this bin */
+          /* chunk belongs in this bin 
+             对bin中的chunk进行size检查是否该属于当前bin*/
           assert (fastbin_index (chunksize (p)) == i);
 	  p = REVEAL_PTR (p->fd);
         }
     }
 
   /* check normal bins */
-  for (i = 1; i < NBINS; ++i)
+  for (i = 1; i < NBINS; ++i)// 128
     {
       b = bin_at (av, i);
 
@@ -2522,13 +2529,13 @@ do_check_malloc_state (mstate av)
         {
           unsigned int binbit = get_binmap (av, i);
           int empty = last (b) == b;
-          if (!binbit)
+          if (!binbit)// binbit显示bin为空则bin的bk指针指向自身
             assert (empty);
-          else if (!empty)
+          else if (!empty)// bin的bk指针指向其他chunk则表示当前bin非空
             assert (binbit);
         }
 
-      for (p = last (b); p != b; p = p->bk)
+      for (p = last (b); p != b; p = p->bk)// 从后向前遍历
         {
           /* each chunk claims to be free */
           do_check_free_chunk (av, p);
@@ -2536,18 +2543,18 @@ do_check_malloc_state (mstate av)
           total += size;
           if (i >= 2)
             {
-              /* chunk belongs in bin */
+              /* chunk belongs in bin 进行size和所在bin的索引反向验证*/
               idx = bin_index (size);
               assert (idx == i);
               /* lists are sorted */
               assert (p->bk == b ||
-                      (unsigned long) chunksize (p->bk) >= (unsigned long) chunksize (p));
+                      (unsigned long) chunksize (p->bk) >= (unsigned long) chunksize (p));// bin中仅有一个chunk或者当前chunk的上一个chuk size大于当前chunk size,即bin中chunk由近及远降序排列
 
-              if (!in_smallbin_range (size))
+              if (!in_smallbin_range (size))// largebin中进行额外的检查                                                                                                                                                          
                 {
                   if (p->fd_nextsize != NULL)
                     {
-                      if (p->fd_nextsize == p)
+                      if (p->fd_nextsize == p)// 如果当前chunk为bin中最大chunk,则bk/fd_nextsize均指向自身
                         assert (p->bk_nextsize == p);
                       else
                         {
