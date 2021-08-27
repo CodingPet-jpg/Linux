@@ -2683,17 +2683,17 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                      CHUNK_HDR_SZ-1.  Each mmap'ed area is page
                      aligned and therefore definitely
                      MALLOC_ALIGN_MASK-aligned.  */
-                  assert (((INTERNAL_SIZE_T) chunk2mem (mm) & MALLOC_ALIGN_MASK) == 0);
-                  front_misalign = 0;
+                  assert (((INTERNAL_SIZE_T) chunk2mem (mm) & MALLOC_ALIGN_MASK) == 0);//16 字节对齐
+                  front_misalign = 0;// 正确对齐无需偏移
                 }
               else
-                front_misalign = (INTERNAL_SIZE_T) chunk2mem (mm) & MALLOC_ALIGN_MASK;
-              if (front_misalign > 0)
+                front_misalign = (INTERNAL_SIZE_T) chunk2mem (mm) & MALLOC_ALIGN_MASK;// 否则偏移值为相较于对齐而言多出的部分内存
+              if (front_misalign > 0)// 存在多余
                 {
-                  correction = MALLOC_ALIGNMENT - front_misalign;
-                  p = (mchunkptr) (mm + correction);
+                  correction = MALLOC_ALIGNMENT - front_misalign;//对齐  - 无法对齐的多余部分
+                  p = (mchunkptr) (mm + correction);// 向右偏移1 - 多余
 		  set_prev_size (p, correction);
-                  set_head (p, (size - correction) | IS_MMAPPED);
+                  set_head (p, (size - correction) | IS_MMAPPED);// 设置chunk的size字段
                 }
               else
                 {
@@ -2713,7 +2713,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 
               check_chunk (av, p);
 
-              return chunk2mem (p);
+              return chunk2mem (p);// chunk+header size,即存储用户数据区
             }
         }
     }
