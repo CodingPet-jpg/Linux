@@ -2638,7 +2638,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
      allocated mmapped regions, try to directly map this request
      rather than expanding top.
    */
-  // mmap分配
+  // arena为空或大于能使用mmap分配内存的最小阈值同时小于mmap能分配的最大内存则使用mmap分配
   if (av == NULL
       || ((unsigned long) (nb) >= (unsigned long) (mp_.mmap_threshold)
 	  && (mp_.n_mmaps < mp_.n_mmaps_max)))
@@ -2653,6 +2653,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
 
          See the front_misalign handling below, for glibc there is no
          need for further alignments unless we have have high alignment.
+         mmaped chunk不同与freed chunk 和 allocated chunk有两个SIZE-SZ的overhead,仅有一个SIZE_SZ的overhead,因为其无需标记上一个chunk的size,故节省一个SIZE_SZ的开销
        */
       if (MALLOC_ALIGNMENT == CHUNK_HDR_SZ)
         size = ALIGN_UP (nb + SIZE_SZ, pagesize);
@@ -2676,6 +2677,23 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                  address argument for later munmap in free() and realloc().
                */
 
+
+              //  +---------------+
+              //  | CHUNK_HDR_SIZE|
+              //  +--------------------------------------+
+              //mm|               |                      |
+              //  +--------------------------------------+
+              //  |MALLOC_ALIGNMEN|
+              //  +---------------+
+              //
+              //  +---------------+
+              //  |CHS|     x     |
+              //  +--------------------------------------+
+              //mm|               |                      |
+              //  +--------------------------------------+
+              //  |MALLOC_ALIGNMEN|
+              //  +---------------+
+
               if (MALLOC_ALIGNMENT == CHUNK_HDR_SZ)
                 {
                   /* For glibc, chunk2mem increases the address by
@@ -2687,11 +2705,11 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                   front_misalign = 0;// 正确对齐无需偏移
                 }
               else
-                front_misalign = (INTERNAL_SIZE_T) chunk2mem (mm) & MALLOC_ALIGN_MASK;// 否则偏移值为相较于对齐而言多出的部分内存
+                front_misalign = (INTERNAL_SIZE_T) chunk2mem (mm) & MALLOC_ALIGN_MASK;// 否则偏移值为相较于对齐位置而言多出的部分
               if (front_misalign > 0)// 存在多余
                 {
-                  correction = MALLOC_ALIGNMENT - front_misalign;//对齐  - 无法对齐的多余部分
-                  p = (mchunkptr) (mm + correction);// 向右偏移1 - 多余
+                  correction = MALLOC_ALIGNMENT - front_misalign;//对应图中x部分
+                  p = (mchunkptr) (mm + correction);// 向右偏移图中x
 		  set_prev_size (p, correction);
                   set_head (p, (size - correction) | IS_MMAPPED);// 设置chunk的size字段
                 }
@@ -2702,9 +2720,10 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                   set_head (p, size | IS_MMAPPED);
                 }
 
-              /* update statistics */
+              /* update statistics 
+                 更新mp_中统计数据*/
 
-              int new = atomic_exchange_and_add (&mp_.n_mmaps, 1) + 1;
+              int new = atomic_exchange_and_add (&mp_.n_mmaps, 1) + 1;// 更新当前mmap的次数
               atomic_max (&mp_.max_n_mmaps, new);
 
               unsigned long sum;
@@ -2716,23 +2735,28 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
               return chunk2mem (p);// chunk+header size,即存储用户数据区
             }
         }
-    }
+    }// end of try_mmap
 
-  /* There are no usable arenas and mmap also failed.  */
+  /* There are no usable arenas and mmap also failed.
+     无法使用mmap且arena为null则当前arena无可分配内存直接返回*/
   if (av == NULL)
     return 0;
 
+  // 不满足mmap条件但是有arena时尝试使用sbrk分配
   /* Record incoming configuration of top */
 
+  // 保存原Top信息
   old_top = av->top;
   old_size = chunksize (old_top);
   old_end = (char *) (chunk_at_offset (old_top, old_size));
 
+  // 初始化两个指向0的brk指针
   brk = snd_brk = (char *) (MORECORE_FAILURE);
 
   /*
      If not the first time through, we require old_size to be
      at least MINSIZE and to have prev_inuse set.
+     如果先前Top已初始化,则要求top size至少大于MINSIZE,先前chunk被占用且页对齐
    */
 
   assert ((old_top == initial_top (av) && old_size == 0) ||
@@ -2743,7 +2767,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
   /* Precondition: not enough current space to satisfy nb request */
   assert ((unsigned long) (old_size) < (unsigned long) (nb + MINSIZE));
 
-
+  /*从分配区*/
   if (av != &main_arena)
     {
       heap_info *old_heap, *heap; 
@@ -2752,6 +2776,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
       /* First try to extend the current heap. */
       old_heap = heap_for_ptr (old_top);
       old_heap_size = old_heap->size;
+      // 如果请求的size大于当前Top chunk且sbrk扩展top成功,将扩展的内存加入system_mem并修改top chunk中记录的size
       if ((long) (MINSIZE + nb - old_size) > 0
           && grow_heap (old_heap, MINSIZE + nb - old_size) == 0)
         {
@@ -2759,6 +2784,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
           set_head (old_top, (((char *) old_heap + old_heap->size) - (char *) old_top)
                     | PREV_INUSE);
         }
+      // 如果请求的size大于当前Top chunk但是sbrk扩展top失败,多数原因是heap已达最大值,此时重新new一个新heap
       else if ((heap = new_heap (nb + (MINSIZE + sizeof (*heap)), mp_.top_pad)))
         {
           /* Use a newly allocated heap.  */
@@ -2766,6 +2792,11 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
           heap->prev = old_heap;
           av->system_mem += heap->size;
           /* Set up the new top.  */
+          // +------------------------------+    +------------------------------+
+          // | +----------------------------|    | +----------------------------|
+          // | |  HEAP1  |     TOP CHUNK    |--->| |H1|H2|      TOP CHUNK      ||
+          // | +----------------------------|    | +----------------------------|
+          // +------------------------------+    +------------------------------+
           top (av) = chunk_at_offset (heap, sizeof (*heap));
           set_head (top (av), (heap->size - sizeof (*heap)) | PREV_INUSE);
 
@@ -2797,7 +2828,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
     }
   else     /* av == main_arena */
 
-
+    /*主分配区*/
     { /* Request enough space for nb + pad + overhead */
       size = nb + mp_.top_pad + MINSIZE;
 
@@ -2808,10 +2839,11 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
        */
 
       if (contiguous (av))
-        size -= old_size;
+        size -= old_size;// 当前top不能满足的增量size
 
       /*
          Round to a multiple of page size.
+
          If MORECORE is not contiguous, this ensures that we only call it
          with whole-page arguments.  And if MORECORE is contiguous and
          this is not first time through, this preserves page-alignment of
@@ -2847,7 +2879,8 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
           if (contiguous (av))
             size = ALIGN_UP (size + old_size, pagesize);
 
-          /* If we are relying on mmap as backup, then use larger units */
+          /* If we are relying on mmap as backup, then use larger units 
+             如果需求分配的内存通过扩展sbrk会触及hole,则放弃sbrk转而将整块内存使用mmap映射*/
           if ((unsigned long) (size) < (unsigned long) (MMAP_AS_MORECORE_SIZE))
             size = MMAP_AS_MORECORE_SIZE;
 
@@ -2869,6 +2902,8 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
                      After the first time mmap is used as backup, we do not
                      ever rely on contiguous space since this could incorrectly
                      bridge regions.
+                     在某次需求的内存大于top chunk且因为存在hole而不能通过sbrk满足请求时
+                     使用了mmap来分配内存,此时top chunk不再连续
                    */
                   set_noncontiguous (av);
                 }
@@ -2888,7 +2923,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
           if (brk == old_end && snd_brk == (char *) (MORECORE_FAILURE))
             set_head (old_top, (size + old_size) | PREV_INUSE);
 
-          else if (contiguous (av) && old_size && brk < old_end)
+          else if (contiguous (av) && old_size && brk < old_end)// 在扩张sbrk期间被其他线程紧缩了
 	    /* Oops!  Someone else killed our space..  Can't touch anything.  */
 	    malloc_printerr ("break adjusted to free malloc space");
 
@@ -3053,8 +3088,8 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
     } /* if (av !=  &main_arena) */
 
   if ((unsigned long) av->system_mem > (unsigned long) (av->max_system_mem))
-    av->max_system_mem = av->system_mem;
-  check_malloc_state (av);
+    av->max_system_mem = av->system_mem;// 分配内存后更新max_system_mem
+  check_malloc_state (av);// 退出前检查arena
 
   /* finally, do the allocation */
   p = av->top;
