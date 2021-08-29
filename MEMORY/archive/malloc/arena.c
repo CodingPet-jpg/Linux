@@ -26,9 +26,9 @@
 
 /* Compile-time constants.  */
 
-#define HEAP_MIN_SIZE (32 * 1024)
+#define HEAP_MIN_SIZE (32 * 1024)// 32KB
 #ifndef HEAP_MAX_SIZE
-# ifdef DEFAULT_MMAP_THRESHOLD_MAX
+# ifdef DEFAULT_MMAP_THRESHOLD_MAX// 64MB
 #  define HEAP_MAX_SIZE (2 * DEFAULT_MMAP_THRESHOLD_MAX)
 # else
 #  define HEAP_MAX_SIZE (1024 * 1024) /* must be a power of two */
@@ -49,8 +49,14 @@
 /* A heap is a single contiguous memory region holding (coalesceable)
    malloc_chunks.  It is allocated with mmap() and always starts at an
    address aligned to HEAP_MAX_SIZE. 
-   Heap是一个容纳chunks且单向增长的连续内存区间,由mmap()分配且始终对齐HEAP_MAX_SIZE,本例中为1GB*/
+   Heap是一个单方向增长且地址连续的chunk容器,由mmap()分配且始终对齐HEAP_MAX_SIZE,本例中为64MB*/
 
+// arena
+// +-------------------------------+
+// | +-------+ +-------+ +-------+ |
+// | | heap1 | | heap2 | | heap3 | |
+// | +-------+ +-------+ +-------+ |
+// +-------------------------------+
 typedef struct _heap_info
 {
   mstate ar_ptr; /* Arena for this heap. 一个Arena可以有多个Heap,一个Heap只能对应一个Arena*/
@@ -109,8 +115,12 @@ int __malloc_initialized = -1;
    once over the circularly linked list of arenas.  If no arena is
    readily available, create a new one.  In this latter case, `size'
    is just a hint as to how much memory will be required immediately
-   in the new arena. */
+   in the new arena. 
 
+   首先尝试获取上次释放锁的arena,失败则遍历arena链表获取空闲arena,再次失败则创建新arena
+   size表示获取arena后将占用其中的内存量* /
+
+ // thread_arena保存当前线程上次使用的arena  
 #define arena_get(ptr, size) do { \
       ptr = thread_arena;						      \
       arena_lock (ptr, size);						      \
@@ -125,12 +135,13 @@ int __malloc_initialized = -1;
 
 /* find the heap and corresponding arena for a given ptr */
 
+// 通过传入指针获取对应的heap
 #define heap_for_ptr(ptr) \
-  ((heap_info *) ((unsigned long) (ptr) & ~(HEAP_MAX_SIZE - 1)))
-// 通过heap的指针范围定位到所属heap
+  ((heap_info *) ((unsigned long) (ptr) & ~(HEAP_MAX_SIZE - 1)))// heap为64MB对齐,通过掩码直接获取heap_info起始位置
+// 通过传入指针获取对应的arena
 #define arena_for_chunk(ptr) \
-  (chunk_main_arena (ptr) ? &main_arena : heap_for_ptr (ptr)->ar_ptr)
-
+  (chunk_main_arena (ptr) ? &main_arena : heap_for_ptr (ptr)->ar_ptr)// 每个heap均记录了所属arena的指针
+// 通过检查传入指针定位chunk size检查M位判断是否属于main arena
 
 /**************************************************************************/
 
@@ -467,7 +478,7 @@ static char *aligned_heap_area;
 static heap_info *
 new_heap (size_t size, size_t top_pad)
 {
-  size_t pagesize = GLRO (dl_pagesize);
+  size_t pagesize = GLRO (dl_pagesize);//_dl_pagesize = 4096
   char *p1, *p2;
   unsigned long ul;
   heap_info *h;
