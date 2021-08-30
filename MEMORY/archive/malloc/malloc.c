@@ -3385,7 +3385,7 @@ tcache_init(void)
   if (tcache_shutting_down)
     return;
 
-  arena_get (ar_ptr, bytes);
+  arena_get (ar_ptr, bytes);// 获取当前线程上次使用的arena
   victim = _int_malloc (ar_ptr, bytes);
   if (!victim && ar_ptr != NULL)
     {
