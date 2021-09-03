@@ -1,3 +1,4 @@
+#define MODULE MAIN
 #define HAVE_TUNABLES 1 
 #include <stdio.h>
 #include"dl-tunables.h"
