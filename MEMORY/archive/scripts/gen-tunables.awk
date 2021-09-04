@@ -1,4 +1,5 @@
 # Generate dl-tunable-list.h from dl-tunables.list
+# awk -f gen-tunables.awk dl-tunables.list  > dl-tunables-list.h编译list文件为头文件
 
 BEGIN {
   min_of["STRING"]="0"

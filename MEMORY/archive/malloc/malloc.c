@@ -3452,7 +3452,7 @@ __libc_malloc (size_t bytes)
                   "PTRDIFF_MAX is not more than half of SIZE_MAX");
 
   if (!__malloc_initialized)
-    ptmalloc_init ();
+    ptmalloc_init ();// 初始化环境变量,check,执行hook
 #if USE_TCACHE
   /* int_free also calls request2size, be careful to not pad twice.  */
   size_t tbytes;
@@ -3461,7 +3461,7 @@ __libc_malloc (size_t bytes)
       __set_errno (ENOMEM);
       return NULL;
     }
-  size_t tc_idx = csize2tidx (tbytes);
+  size_t tc_idx = csize2tidx (tbytes);// 依据size查找chunk在bin中索引
 
   MAYBE_INIT_TCACHE ();
 
@@ -3511,7 +3511,7 @@ void
 __libc_free (void *mem)// 当用户提供一个需要free的chunk时,如果chunk size within fast bin,则将其放入,否则放入unsorted bin,unsorted bin中的chunk可能会在之后被分检到normal binsu或者直接分配给用户使用
 {
   mstate ar_ptr;
-  mchunkptr p;                          /* chunk corresponding to mem */
+mchunkptr p;                          /* chunk corresponding to mem */
 
   if (mem == 0)                              /* free(0) has no effect */
     return;
@@ -3960,7 +3960,7 @@ _int_malloc (mstate av, size_t bytes)
      aligned.
    */
 
-  if (!checked_request2size (bytes, &nb))
+  if (!checked_request2size (bytes, &nb))// 在请求size的基础上+8 bytes头部后再按16字节向上对齐
     {
       __set_errno (ENOMEM);
       return NULL;
@@ -3995,19 +3995,19 @@ _int_malloc (mstate av, size_t bytes)
   while ((pp = catomic_compare_and_exchange_val_acq (fb, pp, victim)) \
 	 != victim);					\
 
-  if ((unsigned long) (nb) <= (unsigned long) (get_max_fast ()))
+  if ((unsigned long) (nb) <= (unsigned long) (get_max_fast ()))// 如果用户请求内存大小在fast bin范围内
     {
       idx = fastbin_index (nb);
-      mfastbinptr *fb = &fastbin (av, idx);
+      mfastbinptr *fb = &fastbin (av, idx);// 获取请求size对应的bin的指针
       mchunkptr pp;
-      victim = *fb;
+      victim = *fb;// 获取bin中第一个chunk
 
-      if (victim != NULL)
+      if (victim != NULL)// fast bin中有可用chunk
 	{
-	  if (__glibc_unlikely (misaligned_chunk (victim)))
+	  if (__glibc_unlikely (misaligned_chunk (victim)))// 检查chunk的对齐
 	    malloc_printerr ("malloc(): unaligned fastbin chunk detected 2");
 
-	  if (SINGLE_THREAD_P)
+	  if (SINGLE_THREAD_P)// 1
 	    *fb = REVEAL_PTR (victim->fd);
 	  else
 	    REMOVE_FB (fb, pp, victim);
@@ -4017,11 +4017,12 @@ _int_malloc (mstate av, size_t bytes)
 	      if (__builtin_expect (victim_idx != idx, 0))
 		malloc_printerr ("malloc(): memory corruption (fast)");
 	      check_remalloced_chunk (av, victim, nb);
-#if USE_TCACHE
+#if USE_TCACHE // 如果当前系统支持TCACHE则将命中的fast bin中chunk unlink,之后放入tcache bin(如果tcache bin中相关大小的entry未满)
 	      /* While we're here, if we see other chunks of the same size,
 		 stash them in the tcache.  */
 	      size_t tc_idx = csize2tidx (nb);
-	      if (tcache && tc_idx < mp_.tcache_bins)
+        // tcache_perthread_struct tcache
+	      if (tcache && tc_idx < mp_.tcache_bins)// <64
 		{
 		  mchunkptr tc_victim;
 
@@ -4065,12 +4066,12 @@ _int_malloc (mstate av, size_t bytes)
 
       if ((victim = last (bin)) != bin)
         {
-          bck = victim->bk;
+          bck = victim->bk;// bck即small bin中倒数第二个chunk
 	  if (__glibc_unlikely (bck->fd != victim))
 	    malloc_printerr ("malloc(): smallbin double linked list corrupted");
           set_inuse_bit_at_offset (victim, nb);
-          bin->bk = bck;
-          bck->fd = bin;
+          bin->bk = bck;// 将bin中最后一个chunk移除后,bin的bk指向倒数第二chunk
+          bck->fd = bin;// 倒数第二个chunk的fd指向bin
 
           if (av != &main_arena)
 	    set_non_main_arena (victim);
@@ -4084,10 +4085,10 @@ _int_malloc (mstate av, size_t bytes)
 	      mchunkptr tc_victim;
 
 	      /* While bin not empty and tcache not full, copy chunks over.  */
-	      while (tcache->counts[tc_idx] < mp_.tcache_count
-		     && (tc_victim = last (bin)) != bin)
+	      while (tcache->counts[tc_idx] < mp_.tcache_count// counts中保存了当前thread的tcache每个bin中存在的chunk数量,最大为7,通过索引查看
+		     && (tc_victim = last (bin)) != bin)// bin不指向自身即bin不为空
 		{
-		  if (tc_victim != 0)
+		  if (tc_victim != 0)// tc_victim为small bin中最后一个chunk
 		    {
 		      bck = tc_victim->bk;
 		      set_inuse_bit_at_offset (tc_victim, nb);
@@ -4097,7 +4098,7 @@ _int_malloc (mstate av, size_t bytes)
 		      bck->fd = bin;
 
 		      tcache_put (tc_victim, tc_idx);
-	            }
+	      }
 		}
 	    }
 #endif
@@ -4887,7 +4888,7 @@ static void malloc_consolidate(mstate av)
   INTERNAL_SIZE_T prevsize;
   int             nextinuse;
 
-  atomic_store_relaxed (&av->have_fastchunks, false);
+  atomic_store_relaxed (&av->have_fastchunks, false);// 设置标记位当前arena无fastchunks,consolidate将合并所有fast bin
 
   unsorted_bin = unsorted_chunks(av);
 
@@ -4902,7 +4903,7 @@ static void malloc_consolidate(mstate av)
   maxfb = &fastbin (av, NFASTBINS - 1);
   fb = &fastbin (av, 0);
   do {
-    p = atomic_exchange_acq (fb, NULL);
+    p = atomic_exchange_acq (fb, NULL);// 清空fast bin列表,并获取第一个chunk
     if (p != 0) {
       do {
 	{
@@ -4922,40 +4923,47 @@ static void malloc_consolidate(mstate av)
 	size = chunksize (p);
 	nextchunk = chunk_at_offset(p, size);
 	nextsize = chunksize(nextchunk);
-
+  //------------------合并前一个chunk------------------
+  // 如果当前chunk的前一个chunk为freed则将当前chunk unlink
 	if (!prev_inuse(p)) {
 	  prevsize = prev_size (p);
 	  size += prevsize;
+    // 保存空闲chunk指针以及两个chunk的size和
 	  p = chunk_at_offset(p, -((long) prevsize));
 	  if (__glibc_unlikely (chunksize(p) != prevsize))
 	    malloc_printerr ("corrupted size vs. prev_size in fastbins");
 	  unlink_chunk (av, p);
 	}
-
+  //------------------合并后一个chunk------------------
+  // 后一个chunk不为Top Chunk
 	if (nextchunk != av->top) {
 	  nextinuse = inuse_bit_at_offset(nextchunk, nextsize);
 
+    // 后一个chunk inuse则unlink并更新size
 	  if (!nextinuse) {
 	    size += nextsize;
 	    unlink_chunk (av, nextchunk);
-	  } else
+	  } else// 否则更新后一个chunk的inuse bit为0
 	    clear_inuse_bit_at_offset(nextchunk, 0);
 
+    // 将当前p chunk插入unsorted bin头部并更新指针,如果第一个fast bin的第一个chunk前为unuse chunk,则p为此chunk,否则p仍为fast bin的第一chunk
 	  first_unsorted = unsorted_bin->fd;
 	  unsorted_bin->fd = p;
 	  first_unsorted->bk = p;
-
+    // 因为small bin size覆盖了fast bin size的范围,所以p的范围一定落在large bin size,初始化fd_nextsize和bk_nextsize为null
 	  if (!in_smallbin_range (size)) {
 	    p->fd_nextsize = NULL;
 	    p->bk_nextsize = NULL;
 	  }
 
+    // 将之前累加出的size设为p的头部
 	  set_head(p, size | PREV_INUSE);
 	  p->bk = unsorted_bin;
 	  p->fd = first_unsorted;
 	  set_foot(p, size);
 	}
-
+  
+  // 如果下一个chunk为Top则直接合并,不需要unlink
 	else {
 	  size += nextsize;
 	  set_head(p, size | PREV_INUSE);
