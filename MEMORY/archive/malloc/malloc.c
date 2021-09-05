@@ -4326,7 +4326,7 @@ _int_malloc (mstate av, size_t bytes)
 #define MAX_ITERS       10000
           if (++iters >= MAX_ITERS)
             break;
-        }
+        }// end of while loop
 
 #if USE_TCACHE
       /* If all the small chunks we found ended up cached, return one now.  */
@@ -4570,7 +4570,7 @@ _int_malloc (mstate av, size_t bytes)
             alloc_perturb (p, bytes);
           return p;
         }
-    }
+    }// end of for(;;)
 }
 
 /*
