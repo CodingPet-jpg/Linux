@@ -3947,9 +3947,9 @@ _int_malloc (mstate av, size_t bytes)
   mchunkptr fwd;                    /* misc temp for linking */
   mchunkptr bck;                    /* misc temp for linking */
 
-#if USE_TCACHE
-  size_t tcache_unsorted_count;	    /* count of unsorted chunks processed */
-#endif
+	#if USE_TCACHE
+		size_t tcache_unsorted_count;	    /* count of unsorted chunks processed */
+	#endif
 
   /*
      Convert request size to internal form by adding SIZE_SZ bytes
@@ -3972,7 +3972,7 @@ _int_malloc (mstate av, size_t bytes)
     {
       void *p = sysmalloc (nb, av);
       if (p != NULL)
-	alloc_perturb (p, bytes);
+				alloc_perturb (p, bytes);
       return p;
     }
 
@@ -3982,18 +3982,18 @@ _int_malloc (mstate av, size_t bytes)
      can try it without checking, which saves some time on this fast path.
    */
 
-#define REMOVE_FB(fb, victim, pp)			\
-  do							\
-    {							\
-      victim = pp;					\
-      if (victim == NULL)				\
-	break;						\
-      pp = REVEAL_PTR (victim->fd);                                     \
-      if (__glibc_unlikely (pp != NULL && misaligned_chunk (pp)))       \
-	malloc_printerr ("malloc(): unaligned fastbin chunk detected"); \
-    }							\
-  while ((pp = catomic_compare_and_exchange_val_acq (fb, pp, victim)) \
-	 != victim);					\
+	#define REMOVE_FB(fb, victim, pp)			\
+		do							\
+			{							\
+				victim = pp;					\
+				if (victim == NULL)				\
+		break;						\
+				pp = REVEAL_PTR (victim->fd);                                     \
+				if (__glibc_unlikely (pp != NULL && misaligned_chunk (pp)))       \
+		malloc_printerr ("malloc(): unaligned fastbin chunk detected"); \
+			}							\
+		while ((pp = catomic_compare_and_exchange_val_acq (fb, pp, victim)) \
+		 != victim);					\
 
   if ((unsigned long) (nb) <= (unsigned long) (get_max_fast ()))// 如果用户请求内存大小在fast bin范围内
     {
@@ -4003,52 +4003,52 @@ _int_malloc (mstate av, size_t bytes)
       victim = *fb;// 获取bin中第一个chunk
 
       if (victim != NULL)// fast bin中有可用chunk
-	{
-	  if (__glibc_unlikely (misaligned_chunk (victim)))// 检查chunk的对齐
-	    malloc_printerr ("malloc(): unaligned fastbin chunk detected 2");
+				{
+					if (__glibc_unlikely (misaligned_chunk (victim)))// 检查chunk的对齐
+						malloc_printerr ("malloc(): unaligned fastbin chunk detected 2");
 
-	  if (SINGLE_THREAD_P)// 1
-	    *fb = REVEAL_PTR (victim->fd);
-	  else
-	    REMOVE_FB (fb, pp, victim);
-	  if (__glibc_likely (victim != NULL))
-	    {
-	      size_t victim_idx = fastbin_index (chunksize (victim));
-	      if (__builtin_expect (victim_idx != idx, 0))
-		malloc_printerr ("malloc(): memory corruption (fast)");
-	      check_remalloced_chunk (av, victim, nb);
-#if USE_TCACHE // 如果当前系统支持TCACHE则将命中的fast bin中chunk unlink,之后放入tcache bin(如果tcache bin中相关大小的entry未满)
-	      /* While we're here, if we see other chunks of the same size,
-		 stash them in the tcache.  */
-	      size_t tc_idx = csize2tidx (nb);
-        // tcache_perthread_struct tcache
-	      if (tcache && tc_idx < mp_.tcache_bins)// <64
-		{
-		  mchunkptr tc_victim;
+					if (SINGLE_THREAD_P)// 1
+						*fb = REVEAL_PTR (victim->fd);
+					else
+						REMOVE_FB (fb, pp, victim);
+					if (__glibc_likely (victim != NULL))
+						{
+							size_t victim_idx = fastbin_index (chunksize (victim));
+							if (__builtin_expect (victim_idx != idx, 0))
+								malloc_printerr ("malloc(): memory corruption (fast)");
+							check_remalloced_chunk (av, victim, nb);
+							#if USE_TCACHE // 如果当前系统支持TCACHE则将命中的fast bin中chunk unlink,之后放入tcache bin(如果tcache bin中相关大小的entry未满)
+											/* While we're here, if we see other chunks of the same size,
+									 stash them in the tcache.  */
+											size_t tc_idx = csize2tidx (nb);
+											// tcache_perthread_struct tcache
+											if (tcache && tc_idx < mp_.tcache_bins)// <64
+												{
+													mchunkptr tc_victim;
 
-		  /* While bin not empty and tcache not full, copy chunks.  */
-		  while (tcache->counts[tc_idx] < mp_.tcache_count
-			 && (tc_victim = *fb) != NULL)
-		    {
-		      if (__glibc_unlikely (misaligned_chunk (tc_victim)))
-			malloc_printerr ("malloc(): unaligned fastbin chunk detected 3");
-		      if (SINGLE_THREAD_P)
-			*fb = REVEAL_PTR (tc_victim->fd);
-		      else
-			{
-			  REMOVE_FB (fb, pp, tc_victim);
-			  if (__glibc_unlikely (tc_victim == NULL))
-			    break;
-			}
-		      tcache_put (tc_victim, tc_idx);
-		    }
-		}
-#endif
-	      void *p = chunk2mem (victim);
-	      alloc_perturb (p, bytes);
-	      return p;
-	    }
-	}
+													/* While bin not empty and tcache not full, copy chunks.  */
+													while (tcache->counts[tc_idx] < mp_.tcache_count
+													 && (tc_victim = *fb) != NULL)
+														{
+															if (__glibc_unlikely (misaligned_chunk (tc_victim)))
+																malloc_printerr ("malloc(): unaligned fastbin chunk detected 3");
+															if (SINGLE_THREAD_P)
+																*fb = REVEAL_PTR (tc_victim->fd);
+															else
+																{
+																	REMOVE_FB (fb, pp, tc_victim);
+																	if (__glibc_unlikely (tc_victim == NULL))
+																		break;
+																}
+															tcache_put (tc_victim, tc_idx);
+														}
+												}
+							#endif
+							void *p = chunk2mem (victim);
+							alloc_perturb (p, bytes);
+							return p;
+						}
+				}
     }
 
   /*
@@ -4067,41 +4067,41 @@ _int_malloc (mstate av, size_t bytes)
       if ((victim = last (bin)) != bin)
         {
           bck = victim->bk;// bck即small bin中倒数第二个chunk
-	  if (__glibc_unlikely (bck->fd != victim))
-	    malloc_printerr ("malloc(): smallbin double linked list corrupted");
+					if (__glibc_unlikely (bck->fd != victim))
+						malloc_printerr ("malloc(): smallbin double linked list corrupted");
           set_inuse_bit_at_offset (victim, nb);
           bin->bk = bck;// 将bin中最后一个chunk移除后,bin的bk指向倒数第二chunk
           bck->fd = bin;// 倒数第二个chunk的fd指向bin
 
           if (av != &main_arena)
-	    set_non_main_arena (victim);
+						set_non_main_arena (victim);
           check_malloced_chunk (av, victim, nb);
-#if USE_TCACHE
-	  /* While we're here, if we see other chunks of the same size,
-	     stash them in the tcache.  */
-	  size_t tc_idx = csize2tidx (nb);
-	  if (tcache && tc_idx < mp_.tcache_bins)
-	    {
-	      mchunkptr tc_victim;
+					#if USE_TCACHE
+							/* While we're here, if we see other chunks of the same size,
+								 stash them in the tcache.  */
+							size_t tc_idx = csize2tidx (nb);
+							if (tcache && tc_idx < mp_.tcache_bins)
+								{
+									mchunkptr tc_victim;
 
-	      /* While bin not empty and tcache not full, copy chunks over.  */
-	      while (tcache->counts[tc_idx] < mp_.tcache_count// counts中保存了当前thread的tcache每个bin中存在的chunk数量,最大为7,通过索引查看
-		     && (tc_victim = last (bin)) != bin)// bin不指向自身即bin不为空
-		{
-		  if (tc_victim != 0)// tc_victim为small bin中最后一个chunk
-		    {
-		      bck = tc_victim->bk;
-		      set_inuse_bit_at_offset (tc_victim, nb);
-		      if (av != &main_arena)
-			set_non_main_arena (tc_victim);
-		      bin->bk = bck;
-		      bck->fd = bin;
+									/* While bin not empty and tcache not full, copy chunks over.  */
+									while (tcache->counts[tc_idx] < mp_.tcache_count// counts中保存了当前thread的tcache每个bin中存在的chunk数量,最大为7,通过索引查看
+									 && (tc_victim = last (bin)) != bin)// bin不指向自身即bin不为空
+							{
+								if (tc_victim != 0)// tc_victim为small bin中最后一个chunk
+									{
+										bck = tc_victim->bk;
+										set_inuse_bit_at_offset (tc_victim, nb);
+										if (av != &main_arena)
+								set_non_main_arena (tc_victim);
+										bin->bk = bck;
+										bck->fd = bin;
 
-		      tcache_put (tc_victim, tc_idx);
-	      }
-		}
-	    }
-#endif
+										tcache_put (tc_victim, tc_idx);
+									}
+							}
+								}
+					#endif
           void *p = chunk2mem (victim);
           alloc_perturb (p, bytes);
           return p;
@@ -4139,15 +4139,15 @@ _int_malloc (mstate av, size_t bytes)
      otherwise need to expand memory to service a "small" request.
    */
 
-#if USE_TCACHE
-  INTERNAL_SIZE_T tcache_nb = 0;
-  size_t tc_idx = csize2tidx (nb);
-  if (tcache && tc_idx < mp_.tcache_bins)
-    tcache_nb = nb;
-  int return_cached = 0;
+		#if USE_TCACHE
+			INTERNAL_SIZE_T tcache_nb = 0;
+			size_t tc_idx = csize2tidx (nb);
+			if (tcache && tc_idx < mp_.tcache_bins)
+				tcache_nb = nb;
+			int return_cached = 0;
 
-  tcache_unsorted_count = 0;
-#endif
+			tcache_unsorted_count = 0;
+		#endif
 
   for (;; )
     {
@@ -4220,27 +4220,27 @@ _int_malloc (mstate av, size_t bytes)
             {
               set_inuse_bit_at_offset (victim, size);
               if (av != &main_arena)
-		set_non_main_arena (victim);
-#if USE_TCACHE
-	      /* Fill cache first, return to user only if cache fills.
-		 We may return one of these chunks later.  */
-	      if (tcache_nb
-		  && tcache->counts[tc_idx] < mp_.tcache_count)
-		{
-		  tcache_put (victim, tc_idx);
-		  return_cached = 1;
-		  continue;
-		}
-	      else
-		{
-#endif
+								set_non_main_arena (victim);
+					#if USE_TCACHE
+									/* Fill cache first, return to user only if cache fills.
+							 We may return one of these chunks later.  */
+									if (tcache_nb
+								&& tcache->counts[tc_idx] < mp_.tcache_count)
+							{
+								tcache_put (victim, tc_idx);
+								return_cached = 1;
+								continue;
+							}
+									else
+							{
+					#endif
               check_malloced_chunk (av, victim, nb);
               void *p = chunk2mem (victim);
               alloc_perturb (p, bytes);
               return p;
-#if USE_TCACHE
-		}
-#endif
+					#if USE_TCACHE
+							}
+					#endif
             }
 
           /* place chunk in bin */
@@ -4264,8 +4264,7 @@ _int_malloc (mstate av, size_t bytes)
                   size |= PREV_INUSE;
                   /* if smaller than smallest, bypass loop below */
                   assert (chunk_main_arena (bck->bk));
-                  if ((unsigned long) (size)
-		      < (unsigned long) chunksize_nomask (bck->bk))
+                  if ((unsigned long) (size) < (unsigned long) chunksize_nomask (bck->bk))
                     {
                       fwd = bck;
                       bck = bck->bk;
@@ -4280,11 +4279,10 @@ _int_malloc (mstate av, size_t bytes)
                       while ((unsigned long) size < chunksize_nomask (fwd))
                         {
                           fwd = fwd->fd_nextsize;
-			  assert (chunk_main_arena (fwd));
+													assert (chunk_main_arena (fwd));
                         }
 
-                      if ((unsigned long) size
-			  == (unsigned long) chunksize_nomask (fwd))
+                      if ((unsigned long) size == (unsigned long) chunksize_nomask (fwd))
                         /* Always insert in the second position.  */
                         fwd = fwd->fd;
                       else
@@ -4311,30 +4309,30 @@ _int_malloc (mstate av, size_t bytes)
           fwd->bk = victim;
           bck->fd = victim;
 
-#if USE_TCACHE
-      /* If we've processed as many chunks as we're allowed while
-	 filling the cache, return one of the cached ones.  */
-      ++tcache_unsorted_count;
-      if (return_cached
-	  && mp_.tcache_unsorted_limit > 0
-	  && tcache_unsorted_count > mp_.tcache_unsorted_limit)
-	{
-	  return tcache_get (tc_idx);
-	}
-#endif
+					#if USE_TCACHE
+								/* If we've processed as many chunks as we're allowed while
+						 filling the cache, return one of the cached ones.  */
+								++tcache_unsorted_count;
+								if (return_cached
+							&& mp_.tcache_unsorted_limit > 0
+							&& tcache_unsorted_count > mp_.tcache_unsorted_limit)
+						{
+							return tcache_get (tc_idx);
+						}
+					#endif
 
-#define MAX_ITERS       10000
+					#define MAX_ITERS       10000
           if (++iters >= MAX_ITERS)
             break;
         }// end of while loop
 
-#if USE_TCACHE
-      /* If all the small chunks we found ended up cached, return one now.  */
-      if (return_cached)
-	{
-	  return tcache_get (tc_idx);
-	}
-#endif
+				#if USE_TCACHE
+							/* If all the small chunks we found ended up cached, return one now.  */
+							if (return_cached)
+					{
+						return tcache_get (tc_idx);
+					}
+				#endif
 
       /*
          If a large request, scan through the chunks of current bin in
@@ -4511,65 +4509,65 @@ _int_malloc (mstate av, size_t bytes)
             }
         }
 
-    use_top:
-      /*
-         If large enough, split off the chunk bordering the end of memory
-         (held in av->top). Note that this is in accord with the best-fit
-         search rule.  In effect, av->top is treated as larger (and thus
-         less well fitting) than any other available chunk since it can
-         be extended to be as large as necessary (up to system
-         limitations).
+				use_top:
+					/*
+						 If large enough, split off the chunk bordering the end of memory
+						 (held in av->top). Note that this is in accord with the best-fit
+						 search rule.  In effect, av->top is treated as larger (and thus
+						 less well fitting) than any other available chunk since it can
+						 be extended to be as large as necessary (up to system
+						 limitations).
 
-         We require that av->top always exists (i.e., has size >=
-         MINSIZE) after initialization, so if it would otherwise be
-         exhausted by current request, it is replenished. (The main
-         reason for ensuring it exists is that we may need MINSIZE space
-         to put in fenceposts in sysmalloc.)
-       */
+						 We require that av->top always exists (i.e., has size >=
+						 MINSIZE) after initialization, so if it would otherwise be
+						 exhausted by current request, it is replenished. (The main
+						 reason for ensuring it exists is that we may need MINSIZE space
+						 to put in fenceposts in sysmalloc.)
+					 */
 
-      victim = av->top;
-      size = chunksize (victim);
+					victim = av->top;
+					size = chunksize (victim);
 
-      if (__glibc_unlikely (size > av->system_mem))
-        malloc_printerr ("malloc(): corrupted top size");
+					if (__glibc_unlikely (size > av->system_mem))
+						malloc_printerr ("malloc(): corrupted top size");
 
-      if ((unsigned long) (size) >= (unsigned long) (nb + MINSIZE))
-        {
-          remainder_size = size - nb;
-          remainder = chunk_at_offset (victim, nb);
-          av->top = remainder;
-          set_head (victim, nb | PREV_INUSE |
-                    (av != &main_arena ? NON_MAIN_ARENA : 0));
-          set_head (remainder, remainder_size | PREV_INUSE);
+					if ((unsigned long) (size) >= (unsigned long) (nb + MINSIZE))
+						{
+							remainder_size = size - nb;
+							remainder = chunk_at_offset (victim, nb);
+							av->top = remainder;
+							set_head (victim, nb | PREV_INUSE |
+												(av != &main_arena ? NON_MAIN_ARENA : 0));
+							set_head (remainder, remainder_size | PREV_INUSE);
 
-          check_malloced_chunk (av, victim, nb);
-          void *p = chunk2mem (victim);
-          alloc_perturb (p, bytes);
-          return p;
-        }
+							check_malloced_chunk (av, victim, nb);
+							void *p = chunk2mem (victim);
+							alloc_perturb (p, bytes);
+							return p;
+						}
 
-      /* When we are using atomic ops to free fast chunks we can get
-         here for all block sizes.  */
-      else if (atomic_load_relaxed (&av->have_fastchunks))
-        {
-          malloc_consolidate (av);
-          /* restore original bin index */
-          if (in_smallbin_range (nb))
-            idx = smallbin_index (nb);
-          else
-            idx = largebin_index (nb);
-        }
+					/* When we are using atomic ops to free fast chunks we can get
+						 here for all block sizes.  */
+					else if (atomic_load_relaxed (&av->have_fastchunks))
+						{
+							malloc_consolidate (av);
+							/* restore original bin index */
+							if (in_smallbin_range (nb))
+								idx = smallbin_index (nb);
+							else
+								idx = largebin_index (nb);
+						}
 
-      /*
-         Otherwise, relay to handle system-dependent cases
-       */
-      else
-        {
-          void *p = sysmalloc (nb, av);
-          if (p != NULL)
-            alloc_perturb (p, bytes);
-          return p;
-        }
+					/*
+						 Otherwise, relay to handle system-dependent cases
+					 */
+					else
+						{
+							void *p = sysmalloc (nb, av);
+							if (p != NULL)
+								alloc_perturb (p, bytes);
+							return p;
+						}
     }// end of for(;;)
 }
 
