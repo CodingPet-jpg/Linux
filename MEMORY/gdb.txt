@@ -1,0 +1,15 @@
+Note: breakpoints 1 and 2 also set at pc 0x1149.
+Breakpoint 3 at 0x1149: file coredump.c, line 5.
+warning: Currently logging to gdb.txt.  Turn the logging off and on to make the new setting effective.
+Note: breakpoints 1, 2 and 3 also set at pc 0x1149.
+Breakpoint 4 at 0x1149: file coredump.c, line 5.
+warning: Currently logging to gdb.txt.  Turn the logging off and on to make the new setting effective.
+Undefined command: "bk".  Try "help".
+Working directory /root.
+Working directory /home/jokoi/NOTE/Linux/MEMORY.
+Working directory /root.
+Working directory /home/jokoi/NOTE/Linux/MEMORY.
+warning: Currently logging to gdb.txt.  Turn the logging off and on to make the new setting effective.
+Undefined command: "bg".  Try "help".
+warning: Currently logging to gdb.txt.  Turn the logging off and on to make the new setting effective.
+Ambiguous command "g": gcore, generate-core-file, goto-bookmark, gr, gu, guile, guile-repl.

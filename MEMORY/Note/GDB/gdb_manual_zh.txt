@@ -1,12 +1,48 @@
 <启动GDB>
-  gdb $program_file                启动指定可执行文件
+  gdb $program_file                         启动指定可执行文件
 
-  gdb $program_file $core_file     启动指定可执行文件并根据coredump文件恢复内存映像
+  gdb $program_file $core_file              启动指定可执行文件并根据coredump文件恢复内存映像
 
-  gdb $program_file $process_id    根据进程号调试正在运行的程序,-p指定进程号后可省略文件名
+  gdb $program_file $process_id             根据进程号调试正在运行的程序,-p指定进程号后可省略文件名
   gdb -p $process_id
   
-  gdb --silent/--quiet/-q          静默启动gdb,不会打印证书及保修策略
+  gdb --silent/--quiet/-q                   静默启动gdb,不会打印证书及保修策略
+
+  gdb --args $expression                    args后接表达式,适用于带参数的程序执行
+
+  gdb -h                                    查看帮助文档
+
+  gdb --core=$core_file                     查看coredump文件
+
+  gdb --configuration                       查看gdb的配置信息后退出
+</>
+
+<退出GDB>
+  (gdb) q/quit
+</>
+
+<Linux Shell in GDB>
+  (gdb) !$command-string                    在不退出gdb的情况下执行linux shell,用法与Vim相同,make指令可以直接执行不需要！
+
+  pipe                                      TODO
+</>
+
+<GDB日志>
+  (gdb) set logging on/off                  打开/关闭日志记录
+
+  (gdb) set logging file $file              设置日志记录文件,默认记录在当前工作目录下的gdb.txt
+
+  (gdb) set logging overwrite on/off        打开/关闭覆写
+
+  (gdb) set logging redirect on/off         打开/关闭日志重定向,开启重定向后将gdb返回信息记录在gdb.txt,不再输出控制台
+
+  (gdb) show logging                        查看当前已打印的日志
+
+  (gdb) set logging debugredirect on/off    同redirect,待考察
+</>
+
+<GDB Shell>
+  (gdb) help $gdb_shell                     参看GDB内部指令的帮助文档
 
 
 </>

@@ -1,0 +1,10 @@
+Ambiguous command "ad": add-auto-load-safe-path, add-auto-load-scripts-directory, add-inferior, add-symbol-file...
+Note: breakpoint 1 also set at pc 0x555555555149.
+Breakpoint 2 at 0x555555555149: file coredump.c, line 5.
+Currently logging to "gdb.txt".
+Logs will be appended to the log file.
+Output will be logged and displayed.
+Debug output will be sent only to the log file.
+
+Program terminated with signal SIGSEGV, Segmentation fault.
+The program no longer exists.
