@@ -1,0 +1,12 @@
+<启动GDB>
+  gdb $program_file                启动指定可执行文件
+
+  gdb $program_file $core_file     启动指定可执行文件并根据coredump文件恢复内存映像
+
+  gdb $program_file $process_id    根据进程号调试正在运行的程序,-p指定进程号后可省略文件名
+  gdb -p $process_id
+  
+  gdb --silent/--quiet/-q          静默启动gdb,不会打印证书及保修策略
+
+
+</>
