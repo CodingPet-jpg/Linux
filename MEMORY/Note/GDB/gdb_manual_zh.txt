@@ -1,20 +1,20 @@
 <启动GDB>
-  gdb $program_file                         启动指定可执行文件
+  gdb $program_file                                                 启动指定可执行文件
 
-  gdb $program_file $core_file              启动指定可执行文件并根据coredump文件恢复内存映像
+  gdb $program_file $core_file                                      启动指定可执行文件并根据coredump文件恢复内存映像
 
-  gdb $program_file $process_id             根据进程号调试正在运行的程序,-p指定进程号后可省略文件名
+  gdb $program_file $process_id                                     根据进程号调试正在运行的程序,-p指定进程号后可省略文件名
   gdb -p $process_id
   
-  gdb --silent/--quiet/-q                   静默启动gdb,不会打印证书及保修策略
+  gdb --silent/--quiet/-q                                           静默启动gdb,不会打印证书及保修策略
 
-  gdb --args $expression                    args后接表达式,适用于带参数的程序执行
+  gdb --args $expression                                            args后接表达式,适用于带参数的程序执行
 
-  gdb -h                                    查看帮助文档
+  gdb -h                                                            查看帮助文档
 
-  gdb --core=$core_file                     查看coredump文件
+  gdb --core=$core_file                                             查看coredump文件
 
-  gdb --configuration                       查看gdb的配置信息后退出
+  gdb --configuration                                               查看gdb的配置信息后退出
 </>
 
 <退出GDB>
@@ -22,27 +22,204 @@
 </>
 
 <Linux Shell in GDB>
-  (gdb) !$command-string                    在不退出gdb的情况下执行linux shell,用法与Vim相同,make指令可以直接执行不需要！
+  (gdb) !$command-string                                            在不退出gdb的情况下执行linux shell,用法与Vim相同,make指令可以直接执行不需要！
 
-  pipe                                      TODO
+  pipe                                                              TODO
 </>
 
 <GDB日志>
-  (gdb) set logging on/off                  打开/关闭日志记录
+  (gdb) set logging on/off                                          打开/关闭日志记录
 
-  (gdb) set logging file $file              设置日志记录文件,默认记录在当前工作目录下的gdb.txt
+  (gdb) set logging file $file                                      设置日志记录文件,默认记录在当前工作目录下的gdb.txt
 
-  (gdb) set logging overwrite on/off        打开/关闭覆写
+  (gdb) set logging overwrite on/off                                打开/关闭覆写
 
-  (gdb) set logging redirect on/off         打开/关闭日志重定向,开启重定向后将gdb返回信息记录在gdb.txt,不再输出控制台
+  (gdb) set logging redirect on/off                                 打开/关闭日志重定向,开启重定向后将gdb返回信息记录在gdb.txt,不再输出控制台
 
-  (gdb) show logging                        查看当前已打印的日志
+  (gdb) show logging                                                查看当前已打印的日志
 
-  (gdb) set logging debugredirect on/off    同redirect,待考察
+  (gdb) set logging debugredirect on/off                            同redirect,待考察
 </>
 
 <GDB Shell>
-  (gdb) help $gdb_shell                     参看GDB内部指令的帮助文档
+  (gdb) help $gdb_shell                                             参看GDB内部指令的帮助文档
 
 
+</>
+<GDB Shell>
+  help $gdb_command                                                 查看GDB内部指令的帮助文档
+
+  $gdb_command -TABTAB                                              查看当前指令包含的选项
+
+  <启动程序>                              
+    (gdb) run                                                       创建一个执行流inferior并执行当前程序
+
+    (gdb) continue                                                  继续执行程序直到下一个断点
+
+    (gdb) start                                                     类似于run,区别在于会在函数的main入口打上一个临时的断点,并执行run
+
+    (gdb) attach $pid                                               调试运行中的程序,由pid制定
+  </>
+  <终止程序>
+    (gdb) detach                                                    终止当前运行的程序并返回pid
+  </>
+  <程序运行>
+    (gdb) continue $ignore_count                                    无视指定次数的break并continue,n+1次时遇到断点程序停止
+
+    (gdb) jump
+
+    (gdb) until $location                                           类似next,区别是在循环体内最后一行next会开始下一次循环,而until会跳出循环停在下一行,指定location可以执行到当前frame的指定位置停止,通常用在递归函数内
+
+    (gdb) step $count                                               单歩调试,可以进入有调试信息的函数,count指定多歩调试步数
+          stepi $count                                              同step,进行机器指令级别的单步调试
+
+    (gdb) advance
+
+    (gdb) next $count                                               执行当前frame的下一条指,count指定步数
+
+    (gdb) finish                                                    从当前frame返回并带返回值
+    (gdb) set print finish on/off                                   默认on,off则finish指令结束frame不再展示返回值,仍存在于history
+    (gdb) show print finish
+    (gdb) return $expression                                        从当前frame返回,无返回值,expression替换返回值
+  </>
+  <路径设置>
+    (gdb) cwd                                                       current work dirctory,打印当前inferior所在工作目录
+
+    (gdb) set cwd $work_dirctory                                    设置当前inferior所在工作目录
+
+    (gdb) pwd                                                       print work dirctory,打印gdb当前所在工作目录
+
+    (gdb) cd                                                        修改gdb当前所在工作目录
+  </>
+  <环境设置>
+    (gdb) set env $name=$value                                      设置环境变量,可以空格隔开设置多个环境变量,不会影响到全局环境变量
+
+    (gdb) show environment $name                                    打印所有的环境变量,或name指定的环境变量
+
+    (gdb) unset environment $name                                   将制定name的环境变量从列表移除
+
+    (gdb) show paths                                                显示gdb查找可执行文件和目标文件的路径
+
+    (gdb) path $directory                                           添加gdb查找可执行文件和目标文件的路径
+
+    (gdb) skip -$file $filename/$gfile                              跳过文件中所有函数
+               -function/$rfunction                                 跳过指定函数
+    (gdb) info skip                                                 查看所有skip信息
+          skip delete $skip_id...                                   删除skip设定
+          skip disable $skip_id...                                  关闭指定函数或文件的skip
+          skip enable $skip_id                                     开启制定函数或文件的skip
+          set debug skip on/off                                     开启/关闭打印skip信息
+          show debug skip                                           跳过函数时是否打印skip信息
+  </>
+  <程序流切换>
+    (gdb) info inferiors                                            显示当前所有的程序流
+
+    (gdb) inferior $infno                                           依据索引切换到指定的程序流
+
+    (gdb) clone-inferior -copies $n $infno                          克隆n个infno程序流,当debug同一程序的多个实例时非常有效
+
+    (gdb) remove-inferiors $infno. . .                              移除除当前程序流以外的指定infno程序流,由空格隔开可指定多个程序流
+
+    (gdb) add-inferior -copies $n -exec $exec_file -no-connection   n指定新增程序流的数量,exec_file制定要添加的程序流所包含的可执行程序
+
+    (gdb) detach inferior $infno. . .                               关闭制定程序流,但是不从列表中移除,原本显示pid的Description处置<null>
+
+    (gdb) kill inferiors $infno. . .                                同detach inferior
+  </>
+  <线程相关>
+    (gdb) info threads -gid $thread_list                            查看指定线程组的信息,-gid显示global thread id,2.1表示 inferior 2的第一个线程,2.*表示inferior的所有线程,2.1-4表示inferior 2的1到4个线程,缺省打印所有inferior的所有线程信息
+
+    (gdb) thread $thread_id                                         切换到指定线程并打印栈信息
+
+    (gdb) thread apply $thread_list -c -s -p $command               指定线程,也可用all代表所有线程执行command,-s无视错误信息,-q无视线程的栈信息,-c在输入错误command时打印错误信息并继续执行,无-c会在执行第一个线程时报错,而后续线程不再执行command指令 
+
+    (gdb) taas $command                                             所有线程执行command指令
+
+    (gdb) thread name $name                                         赋予当前线程名字并覆盖systag,默认文件名,不传入name则重置线程名为systag
+
+    (gdb) thread find $name/systag                                  通过name或者systag检索线程
+  </>
+  <回朔>
+    (gdb) checkpoint                                                设置检查点,常用于长debug,在调试过头时回到上一个检查位置避免从头调试
+
+    (gdb) info checkpoints                                          查看当前已设置的所有检查点信息
+
+    (gdb) restart $checkpoint_id                                    回到指定检查点,检查点本质上fork出的一个新线程,所以会有不同的pid这点需要注意,且多次回到同一检查点无意义
+
+    (gdb) delete checkpoint $checkpoint_id                          删除指定检查点
+  </>
+  <堆栈信息>
+    (gdb) info program                                              程序进程号,stop原因,当前所在内存位置
+
+    (gdb) info registers                                            打印寄存器映像
+
+    (gdb) info stack                                                打印程序栈信息
+  </>
+  <断点>
+    (gdb) break $bno...                                             通过行号,虚拟地址,方法名设置断点
+
+    (gdb) break $bno... if $condtion                                每次通过指定断点时运算条件表达式,仅当ture时中断
+
+    (gdb) tbreak $bno                                               用法同break,唯一的区别是此断点为一次性,通过一次后将自动删除
+
+    (gdb) rbreak $file:$regex                                       给指定文件满足regex的所有函数打上断点,regex用法类似grep
+
+    (gdb) info breakpoints/break                                    查看当前断点信息,Type:Breakpoint, watchpoint, or catchpoint.Disposition:当hit断点时keep, delete, or disable.Enb:y表示启用,n表示关闭
+
+    (gdb) set breakpoints pending auto/on/off                       当设置的断点在程序中不存在时,auto会询问是否保留到动态库加载时自动打,on则是默认保留断点信息加载动态库时自动打,off则是直接拒绝当前程序不存在的断点
+          show breakpoints pending    
+
+    (gdb) watch -l/-location $expr thread $thread_id mask $mask     观察write:-l/-location将不再观测变量而是观测变量的地址,即结构体变量地址改变,新结构体中值改变,原结构体中成员值不变,因观测的是原结构体中地址,所以watch不生效
+          rwatch -l/-location $expr thread $thread_id mask $mask    观测read 
+          awatch -l/-location $expr thread $thread_id mask $mask    观测read&write
+
+    (gdb) info watchpoints
+
+    (gdb) show can-use-hw-watchpoints
+          set can-use-watchpoints 1/0
+
+    <<TODO catchpointers>>
+
+    (gdb) clear $filename:$location                                 无指定参数则删除当前所在行的断点,制定则删除指定断点,参数可以是方法名,行号,地址
+
+    (gdb) delete $bno...                                            删除制定断点集合,未制定则删除所有断点,需确认
+
+    (gdb) disable $bno...                                           未指定关闭所有断点并保留断点信息,否则注释指定列表的断点
+
+    (gdb) enable $bno...                                            未指定开启所有断点,否则开启指定断点
+
+    (gdb) enable once $bno...                                       一次性模式开启指定断点,在hit一次后断点变为disabled
+
+    (gdb) enable count $count $bno...                               设定断点计数,在hit指定次数后disable断点
+
+    (gdb) enable delete $bno...                                     一次性模式开启指定断点,在hit一次后断点被delete
+
+    (gdb) condition $bno $expression                                赋予普通断点条件表达式,类似于转换为rbreak,无参则转换为普通断点
+
+    (gdb) ignore $bno $count                                        无视指定断点count次,第count+1次,count指定0则恢复成普通断点,ignore期间condition不被确认
+
+    (gdb) command #bno                                              为断点设置pipeline,在hit时触发,silent可以关闭hit时默认日志,之后按command列表执行,直到程序continue,continue后的指令失效,end标志command列表的结束
+          >silent
+          >$command
+          >$command
+          >continue
+          >end
+    (gdb)      
+    
+    (gdb) save breakpoints $file                                    备份断点信息到工作目录(pwd)
+  </>
+  <打印>
+    (gdb) dprintf $location,$format,$expression...                  当hit指定位置时使用expression按照format打印日志
+
+    (gdb) set printf-style gdb/call/agent                           gdb默认使用printf打印,call默认使用fprintf打印
+          set dprintf-function $function                            设置call打印时使用的函数
+          set dprintf-channel                                       设置fprintf第一个参数使用的输出流
+    (gdb)       
+  </>
+  <信号>
+    TODO
+  </>
+  <多线程调试>
+    
+  </>
 </>
