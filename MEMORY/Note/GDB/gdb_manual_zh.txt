@@ -54,8 +54,6 @@
   <启动程序>                              
     (gdb) run                                                       创建一个执行流inferior并执行当前程序
 
-    (gdb) continue                                                  继续执行程序直到下一个断点
-
     (gdb) start                                                     类似于run,区别在于会在函数的main入口打上一个临时的断点,并执行run
 
     (gdb) attach $pid                                               调试运行中的程序,由pid制定
@@ -63,25 +61,28 @@
   <终止程序>
     (gdb) detach                                                    终止当前运行的程序并返回pid
   </>
-  <程序运行>
-    (gdb) continue $ignore_count                                    无视指定次数的break并continue,n+1次时遇到断点程序停止
+  <单步调试>
+    (gdb) step $count                                               单歩调试,跳过无调试信息的行,进入有调试信息行内部的第一行,count指定多歩调试步数,可以用来进入有调试信息的函数,也可以用来跳过无调试信息的行,和next的区别在于step遇到函数会增加frame深度到达最深处后开始出栈
+          stepi $count                                              汇编代码级别的单步调试,无需调试信息
 
+    (gdb) next $count                                               执行当前stack frame的下一条指令,类似于step但是不会进入函数内部,而是执行函数,即不会跳出当前frame,count指定步数,和step的区别在于next不会使frame增加,而是从inner frame开始逐个出栈
+  </>
+  <多歩调试>
     (gdb) jump
 
-    (gdb) until $location                                           类似next,区别是在循环体内最后一行next会开始下一次循环,而until会跳出循环停在下一行,指定location可以执行到当前frame的指定位置停止,通常用在递归函数内
+    (gdb) advance $location                                         从当前位置一直执行到当前frame外的指定位置,location设置在当前frame时失效
 
-    (gdb) step $count                                               单歩调试,可以进入有调试信息的函数,count指定多歩调试步数
-          stepi $count                                              同step,进行机器指令级别的单步调试
+    (gdb) continue $ignore_count                                    从当前位置开始执行指令直到遇到下一个断点,ignore_count无视指定次数的breakpoint并继续执行指令,遇到第n+1个断点时程序停止,常用于continue到指定函数的第一行,后换用step逐步调试
 
-    (gdb) advance
+    (gdb) until $location                                           将指令执行到当前行的下一行,类似next,区别是在循环体内最后一行或者jump指令上next会转跳到其他地址,而until会直接执行这些指令直到pc定位到当前的下一行为止,指定location可以执行到当前frame的指定位置停止,超出当前frame则失效,通常用在递归函数内,因为执行函数需要很多行,until下一行并不能跳出循环
+    
+    (gdb) return $expression                                        从当前frame返回,返回值自动生成,expression替换返回值
 
-    (gdb) next $count                                               执行当前frame的下一条指,count指定步数
-
-    (gdb) finish                                                    从当前frame返回并带返回值
+    (gdb) finish                                                    执行完当前stack frame的剩余指令后返回并带回返回值
     (gdb) set print finish on/off                                   默认on,off则finish指令结束frame不再展示返回值,仍存在于history
     (gdb) show print finish
-    (gdb) return $expression                                        从当前frame返回,无返回值,expression替换返回值
   </>
+  
   <路径设置>
     (gdb) cwd                                                       current work dirctory,打印当前inferior所在工作目录
 
