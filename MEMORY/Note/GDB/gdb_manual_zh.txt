@@ -66,15 +66,16 @@
           stepi $count                                              汇编代码级别的单步调试,无需调试信息
 
     (gdb) next $count                                               执行当前stack frame的下一条指令,类似于step但是不会进入函数内部,而是执行函数,即不会跳出当前frame,count指定步数,和step的区别在于next不会使frame增加,而是从inner frame开始逐个出栈
+          nexti $count                                              汇编代码级别的单步调试,对于call指令会直接执行但函数返回
   </>
   <多歩调试>
     (gdb) jump
 
-    (gdb) advance $location                                         从当前位置一直执行到当前frame外的指定位置,location设置在当前frame时失效
+    (gdb) advance $location                                         类似until,执行指令到指定位置,advance不像until受制于当前frame,但是advance会在跳出当前frame时stop,所以不能用于递归函数
 
     (gdb) continue $ignore_count                                    从当前位置开始执行指令直到遇到下一个断点,ignore_count无视指定次数的breakpoint并继续执行指令,遇到第n+1个断点时程序停止,常用于continue到指定函数的第一行,后换用step逐步调试
 
-    (gdb) until $location                                           将指令执行到当前行的下一行,类似next,区别是在循环体内最后一行或者jump指令上next会转跳到其他地址,而until会直接执行这些指令直到pc定位到当前的下一行为止,指定location可以执行到当前frame的指定位置停止,超出当前frame则失效,通常用在递归函数内,因为执行函数需要很多行,until下一行并不能跳出循环
+    (gdb) until $location                                           将指令执行到当前行的下一行,类似next,区别是在循环体内最后一行或者jump指令上next会转跳到其他地址,而until会直接执行这些指令直到pc定位到当前的下一行为止,指定location可以执行到当前frame的指定位置停止,超出当前frame则失效,通常用在递归函数中,因为until只能定位在当前frame,递归函数压的栈会被直接跳过
     
     (gdb) return $expression                                        从当前frame返回,返回值自动生成,expression替换返回值
 
@@ -84,7 +85,7 @@
   </>
   
   <路径设置>
-    (gdb) cwd                                                       current work dirctory,打印当前inferior所在工作目录
+    (gdb) show cwd                                                  current work dirctory,打印当前inferior所在工作目录
 
     (gdb) set cwd $work_dirctory                                    设置当前inferior所在工作目录
 
@@ -150,6 +151,43 @@
     (gdb) delete checkpoint $checkpoint_id                          删除指定检查点
   </>
   <堆栈信息>
+    <栈>
+      (gdb) info stack                                              同backtrace/bt
+      (gdb) backtrace $option       $qualifier      $count          
+   -                   full         full            n/-n            指定full打印当前frame上所有的局部变量,n指定最内部n个frame,-n指定最外部
+   -             no-filters         no-filters      ^               禁用所有的python frame filter
+   -                   hide         hide            ^               禁止被python frame filter过滤的frame打印信息
+   -      past-main[on/off]         -               ^               
+   -     past-entry[on/off]         -               ^
+   -   entry-values[no/only         -               ^
+       /preferred/if-needed         
+     /both/compact/default]                       
+   -    frame-arguments[all         -               ^
+             /scalars/none]         
+   -     raw-frame-argument         -               ^
+                   [on/off]       
+   -        frame-info[auto         -               ^
+      /source-line/location
+       /source-and-location
+       location-and-address
+            /short-address]               
+
+      (gdb) frame $stack_num/$stack_address/$function               无参是打印当前被选择frame信息,有参时通过stack_num或address选择指定frame,可以通过bt查看,0为最内部frame,1为其caller,最大为main frame,也可以通过function找到函数所在frame,多个frame包含函数时选择最内部frame 
+
+      (gdb) up $num                                                 向弹栈方向n个frame,并打印被选择的栈信息
+            up-silently $num                                        不打印信息 
+
+      (gdb) down $num                                               向入栈方向n个frame,并打印被选择的栈信息
+            down-silently $num                                      不打印信息
+
+      (gdb) info frame $num                                         打印当前被选择frame或者有参指定的frame,callee和caller,入参栈指针,局部变量栈指针,备份在栈中的寄存器位置,pc寄存器
+
+      (gdb) info args                                               打印当前被选择的frame中入参信息
+
+      (gdb) info locals                                             打印当前被选择frame的局部变量信息
+    </>
+
+
     (gdb) info program                                              程序进程号,stop原因,当前所在内存位置
 
     (gdb) info registers                                            打印寄存器映像
@@ -208,6 +246,11 @@
     (gdb)      
     
     (gdb) save breakpoints $file                                    备份断点信息到工作目录(pwd)
+  </>
+  <源文件信息>
+    list $func_name/$line_num/-/$first,$last                        无参默认向下翻页,-向上翻页,指定行号则将行号作为中心上下打印,指定函数则函数作为中心行打印上下行,指定first,last指定打印范围,仅指定,last则打印last向上listnum行,first同理
+    show listsize                                                   查看当前一页最大显示的行数
+    set listsize $size_num/unlimited                                设置一页最大显示的行数,或者无限制
   </>
   <打印>
     (gdb) dprintf $location,$format,$expression...                  当hit指定位置时使用expression按照format打印日志
